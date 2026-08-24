@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "901169402613",
+    "firebase_url": "https://zillitllc-38e3c-default-rtdb.firebaseio.com",
+    "project_id": "zillitllc-38e3c",
+    "storage_bucket": "zillitllc-38e3c.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901169402613:android:595be2963000f3519e6bbc",
+        "android_client_info": {
+          "package_name": "com.android.zillit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANQJyre0m3NuY83IoNKcqz1JtTAaJUCqs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901169402613:android:77a705e9fbb50e459e6bbc",
+        "android_client_info": {
+          "package_name": "com.zillit.zillitapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANQJyre0m3NuY83IoNKcqz1JtTAaJUCqs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

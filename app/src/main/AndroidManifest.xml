@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- QR device linking: the phone scans a code shown on Web/Tablet. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!--
+      Device-calendar mirroring. Optional and off by default: the app asks only when the
+      user turns sync on in calendar settings, because reading someone's calendar is a
+      request that needs a reason attached to it.
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+    <!--
+      Attachment picker. Android 13 split media access into per-type permissions and
+      stopped granting READ_EXTERNAL_STORAGE at all, so both sets are declared and the
+      legacy one is capped — asking for it on 13+ is a prompt that can never succeed.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Voice notes. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
+    <application
+        android:name=".ZillitApplication"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/zillit_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/zillit_launcher"
+        android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
+        android:theme="@style/Theme.Zillit.Starting">
+
+        <!--
+          No android:screenOrientation — the UI is responsive in both orientations on
+          every device size.
+
+          configChanges deliberately omits orientation|screenSize. Swallowing the config
+          change is the usual shortcut for "don't lose data on rotate", but it only hides
+          the symptom: state is still lost when the process is killed in the background.
+          The Activity recreates normally and state lives in ViewModels and
+          rememberSaveable, which survives rotation AND process death.
+        -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Zillit.Starting"
+            android:windowSoftInputMode="adjustResize"
+            android:launchMode="singleTask"
+            android:configChanges="keyboardHidden|locale|layoutDirection"
+            android:resizeableActivity="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Data-only pushes must reach us even when the app is backgrounded; that is
+             what keeps badges live. See ZillitMessagingService. -->
+        <service
+            android:name=".core.notification.ZillitMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+
+        <!--
+          On-demand WorkManager: the default initialiser cannot see the Hilt graph, and
+          UploadWorker injects the S3 client and the chat repository. ZillitApplication
+          supplies the configuration instead.
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
+        <!--
+          Camera captures are written to a file the app owns, and ACTION_IMAGE_CAPTURE
+          will not accept a file:// URI on any supported API level — so the capture target
+          is handed over through this provider.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+
+        <!--
+          Maps, for picking an event's location. The key comes from local.properties via a
+          manifest placeholder, so it is not committed with the source.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
+    </application>
+
+</manifest>

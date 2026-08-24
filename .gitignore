@@ -1,0 +1,49 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Files for the Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle files
+.gradle/
+build/
+/*/build/
+
+# Local configuration: SDK path, and every base URL and API key the build injects.
+# Never commit this — see the README for the keys a fresh clone has to supply.
+local.properties
+
+# Log Files
+*.log
+
+# Android Studio
+.idea/
+captures/
+.navigation/
+*.iml
+
+# Signing material
+*.jks
+*.keystore
+password.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+.externalNativeBuild
+.cxx
+*.hprof
+
+# Android Studio's per-developer Gradle JDK path (machine-specific)
+gradle/config.properties

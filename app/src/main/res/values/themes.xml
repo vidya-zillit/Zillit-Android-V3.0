@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      The only XML theme in the app. It exists solely for the system splash screen,
+      which is drawn by the OS before any Compose code runs. Everything after the first
+      frame is themed in Compose by ZillitTheme.
+
+      Deliberately NOT parented on a *.Light theme: the light/dark values live in
+      values/ and values-night/ below, so the pre-Compose frame already matches the
+      user's theme and there is no white flash on a dark-mode launch.
+    -->
+    <style name="Theme.Zillit.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/zillit_logo_trans</item>
+        <item name="postSplashScreenTheme">@style/Theme.Zillit</item>
+    </style>
+
+    <style name="Theme.Zillit" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+    </style>
+
+
+    <!--
+      Context theme for androidx.emoji2.emojipicker.EmojiPickerView only.
+
+      That view resolves AppCompat attributes for its category tab row and its
+      variant-selection popup. Theme.Zillit is a framework Material theme, so under it the
+      tab row draws blank. Rather than move the whole app onto AppCompat for one widget,
+      the picker is constructed with a ContextThemeWrapper around this style.
+
+      DayNight so the picker follows the system theme like the rest of the app.
+    -->
+    <style name="Theme.Zillit.EmojiPicker" parent="Theme.AppCompat.DayNight.NoActionBar" />
+
+</resources>

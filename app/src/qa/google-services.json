@@ -1,0 +1,83 @@
+{
+  "project_info": {
+    "project_number": "13765198398",
+    "firebase_url": "https://zillitdev-b26fc-default-rtdb.firebaseio.com",
+    "project_id": "zillitdev-b26fc",
+    "storage_bucket": "zillitdev-b26fc.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:13765198398:android:80c3694e930ebbcdd0c76f",
+        "android_client_info": {
+          "package_name": "com.android.zillit.qa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "13765198398-7a0o2n8vc1med0oqn6njr50uu3buoerh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8dSntoueAWtD8rumS1ZXYJgsqPKJboJA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "13765198398-7a0o2n8vc1med0oqn6njr50uu3buoerh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "13765198398-hoi8st3mfi4r7hp5r4qha4egkri7im63.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.dn.zillitApp.qa"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:13765198398:android:b7d85075526f95f7d0c76f",
+        "android_client_info": {
+          "package_name": "com.zillit.zillitapp.qa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "13765198398-7a0o2n8vc1med0oqn6njr50uu3buoerh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8dSntoueAWtD8rumS1ZXYJgsqPKJboJA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "13765198398-7a0o2n8vc1med0oqn6njr50uu3buoerh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "13765198398-hoi8st3mfi4r7hp5r4qha4egkri7im63.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.dn.zillitApp.qa"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

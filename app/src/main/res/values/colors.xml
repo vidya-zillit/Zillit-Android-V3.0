@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Light values for the pre-Compose frame only. All in-app colour lives in
+      core/ui/theme/Color.kt as semantic tokens; do not add UI colours here.
+    -->
+    <color name="splash_background">#F5F6FA</color>
+    <color name="window_background">#F5F6FA</color>
+    <color name="ic_launcher_background">#FC9404</color>
+
+    <!-- Referenced by vector drawables carried over from v2 (ic_mobile, ic_laptop,
+         ic_next, mobile_laptop_sync). Compose tints most of these at the call site, but
+         a vector still has to resolve its declared fill at build time. Values mirror the
+         v3 semantic tokens in core/ui/theme/Color.kt. -->
+    <color name="text_color_dark">#12213F</color>
+    <color name="icon_grey">#8F9BB3</color>
+    <color name="orange">#FC9404</color>
+</resources>

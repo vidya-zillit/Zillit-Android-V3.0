@@ -1,0 +1,724 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      Every user-facing string in the app lives here. Nothing is hardcoded in Kotlin,
+      so adding a language is a matter of adding values-<lang>/strings.xml and nothing
+      else. Strings that take runtime values use positional args (%1$s) rather than
+      concatenation, because word order differs between languages.
+    -->
+
+    <string name="app_name" translatable="false">Zillit</string>
+
+    <!-- Splash -->
+    <string name="splash_logo_mark" translatable="false">Z</string>
+    <string name="splash_wordmark" translatable="false">Zillit</string>
+
+    <!-- Project list -->
+    <string name="project_list_title">Projects</string>
+    <string name="project_list_error_title">Couldn\'t load your projects</string>
+    <string name="project_list_empty_title">No projects yet</string>
+    <string name="project_list_empty_description">Start a new production, or join one you\'ve been invited to using its project code.</string>
+    <string name="project_action_create">Start Project</string>
+    <string name="project_action_join">Join Project</string>
+    <string name="project_badge_admin">Admin</string>
+
+    <!-- Shown on a project that is scheduled for deletion. %1$d is the hours remaining. -->
+    <plurals name="project_deleting_in_hours">
+        <item quantity="one">Deleting in %1$d hour</item>
+        <item quantity="other">Deleting in %1$d hours</item>
+    </plurals>
+
+    <!-- Unread badge cap, e.g. shown instead of 137. %1$d is the cap. -->
+    <string name="badge_overflow">%1$d+</string>
+
+    <!-- Project list · search -->
+    <string name="project_search_hint">Search projects</string>
+    <string name="project_search_open">Search</string>
+    <string name="project_search_close">Close search</string>
+    <string name="project_search_clear">Clear search</string>
+    <string name="project_search_empty_title">No matches</string>
+    <!-- %1$s is the text the user typed. -->
+    <string name="project_search_empty_description">No projects match “%1$s”. Try a different name or project code.</string>
+
+    <!-- Project list · actions -->
+    <string name="project_scan_qr">Scan QR code</string>
+    <string name="project_favourite_add">Add %1$s to favourites</string>
+    <string name="project_favourite_remove">Remove %1$s from favourites</string>
+    <string name="cd_favourite">Favourite</string>
+
+    <!-- Project info sheet. Labels carried over from v2 verbatim. -->
+    <string name="project_info">Project info</string>
+    <string name="project_name">Project Name</string>
+    <string name="project_code">Project Code</string>
+    <string name="created_on">Created On</string>
+    <string name="project_type">Project type</string>
+    <string name="project_sub_type">Project Sub Type</string>
+    <string name="company_name">Company</string>
+    <string name="action_close">Close</string>
+    <string name="cd_project_info">Details for %1$s</string>
+
+    <!-- Common list picker -->
+    <string name="action_done">Done</string>
+    <string name="action_search">Search</string>
+
+    <!-- Create project -->
+    <string name="create_project_title">Start Project</string>
+    <string name="create_project_name_hint">Enter Project Name*</string>
+    <string name="create_project_select_type">Select Project type</string>
+    <string name="create_project_select_sub_type">Select Sub Type</string>
+    <string name="create_project_first_name">First Name*</string>
+    <string name="create_project_last_name">Last Name*</string>
+    <string name="create_project_email">Enter Email*</string>
+    <string name="create_project_continue">Submit</string>
+    <string name="create_project_otp_title">Verify your email</string>
+    <!-- %1$s is the email address the code was sent to. -->
+    <string name="create_project_otp_description">Enter the code we sent to %1$s.</string>
+    <string name="create_project_otp_hint">Verification code</string>
+    <string name="create_project_resend">Resend code</string>
+    <string name="create_project_submit">Submit</string>
+
+    <!-- Create project · added fields -->
+    <string name="create_project_select_language">Select Language*</string>
+    <string name="create_project_country">Country</string>
+    <string name="create_project_phone">Phone</string>
+    <string name="create_project_email_note">*Email Required For Data Recovery</string>
+    <string name="create_project_terms_prefix">I agree the</string>
+    <string name="create_project_terms">Terms of Service</string>
+    <string name="create_project_terms_and">and</string>
+    <string name="create_project_privacy">Privacy Policy</string>
+    <string name="required_marker">*</string>
+
+    <string name="create_project_verify">Verify</string>
+
+    <!-- %1$d is the seconds remaining before Resend re-enables. -->
+    <string name="create_project_resend_in">Resend code in %1$d</string>
+
+    <!-- Field validation. Limits mirror v2 exactly. -->
+    <string name="validation_required">This field is required</string>
+    <string name="validation_name_length">Must be between 3 and 15 characters</string>
+    <string name="validation_project_name_length">Must be between 3 and 25 characters</string>
+    <string name="validation_phone_required">Enter a phone number for the selected country</string>
+    <string name="validation_phone_length">Enter a valid phone number</string>
+    <string name="validation_country_required">Select a country code</string>
+
+    <string name="loading">Loading…</string>
+
+    <!-- Connectivity banner -->
+    <string name="offline_banner">No internet connection</string>
+    <string name="online_banner">Back online</string>
+
+    <!-- Share project code. Copy carried over from v2 verbatim. -->
+    <string name="share_project_code">Share Project Code</string>
+    <string name="string_code">CODE</string>
+    <!-- v2's invite_code_text_2, verbatim. -->
+    <string name="invite_code_text_2">The only way anyone can join this project is through this digital code listed, so press \'Share\' below to send an invitation. If you are an Admin, you can pre-approve users through \'Admin Settings\' &gt; \'Pre-Approved Users\'</string>
+    <!-- %1$s is the project code. -->
+    <string name="project_code_value">Project Code. %1$s</string>
+    <string name="share_code_msg_part1">You have been invited to the project</string>
+    <string name="share_code_msg_part2">on Zillit App. If you have already downloaded the app then please join with</string>
+    <string name="share_code_msg_part3">If you do not have the Zillit App, please</string>
+    <string name="share_code_msg_part4">to download and then please join with</string>
+    <string name="proceed">Proceed</string>
+    <string name="proceed_string_4">Zillit has Project Set up page for you, click Ok to proceed there and click on Skip to navigate on the Home screen. </string>
+    <string name="recovery_email">Recovery Email</string>
+    <string name="recovery_email_description">Add an email so this project can be recovered if you lose access to this device.</string>
+    <string name="recovery_email_hint">Email address</string>
+    <string name="action_save">Save</string>
+    <string name="action_skip">Skip</string>
+    <string name="action_ok">Ok</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
+    <string name="code_copied">Project code copied</string>
+
+    <!-- Dashboard shell -->
+    <string name="tab_home">Home</string>
+    <string name="tab_email">Email</string>
+    <string name="tab_tools">Tools</string>
+    <string name="tab_cnc">C&amp;C</string>
+    <string name="tab_settings">Settings</string>
+    <string name="notifications">Notifications</string>
+    <string name="tab_placeholder">%1$s comes next</string>
+    <string name="tab_placeholder_description">The dashboard shell, navigation and badges are wired. This tab\'s content is the next piece.</string>
+
+    <!-- Shared header -->
+    <string name="action_help">Help</string>
+    <string name="action_more">More options</string>
+    <string name="action_switch_project">Change Project</string>
+    <string name="action_sos">SOS</string>
+
+    <!-- QR scanner -->
+    <string name="scanner_instruction">Point the camera at the QR code shown on your computer or tablet.</string>
+    <string name="scanner_permission_title">Camera access needed</string>
+    <string name="scanner_permission_description">Zillit needs camera access to scan QR codes. You can enable it in Settings.</string>
+
+    <!-- Common actions -->
+    <string name="action_retry">Try again</string>
+    <string name="action_back">Back</string>
+
+    <!-- Placeholder screens, removed as each real screen lands -->
+    <string name="placeholder_title">%1$s is next</string>
+    <string name="placeholder_description">This screen hasn\'t been built yet. The navigation route and back behaviour are already wired.</string>
+
+    <!-- Linked devices. Copy is carried over verbatim from v2 so the flow reads
+         identically to users who know the old app. -->
+    <string name="linked_device">Linked Device</string>
+    <string name="link_a_device">Link Device</string>
+    <string name="tap_to_logout"><![CDATA[<b>Device Status</b>]]></string>
+    <string name="tap_to_logout_subtitle">Tap a device to logout.</string>
+    <string name="use_zillit_on_web_tab_and_other_devices">Before you click the "Link Device" button below for the first time, please click here</string>
+    <string name="steps_to_link_title">Steps to link your mobile device with your computer for the first time:</string>
+    <string name="steps_to_link_txt"><![CDATA[
+    Steps to link your mobile device with your computer.
+    <br /><b>Step 1 :</b> Open a browser on your computer. <br /><b>Step 2 :</b> Go to https://web.zillit.com.<br /><b>Step 3 :</b> A QR code will appear on the screen.<br /><b>Step 4 :</b> On your mobile device, click <q>Link Device</q> button and then hold it up to scan the QR code.<br /><b>Step 5 :</b> You will see a pop up that says device linked successfully.]]></string>
+    <string name="click_here">click here</string>
+    <string name="logout">Logout</string>
+    <string name="cancel">Cancel</string>
+    <string name="are_you_sure_you_want_to_logout_from_device">Are you sure you wan\'t to logout from device?</string>
+    <string name="last_actvivity_value">Last activity : %1$s</string>
+    <string name="linked_device_empty_title">No linked devices</string>
+    <string name="linked_device_empty_description">Devices you link to this account will appear here.</string>
+    <string name="cd_linked_device">%1$s, %2$s</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_general">General</string>
+    <string name="notification_channel_general_description">Project activity, chat messages and tool updates.</string>
+
+    <!-- Errors -->
+    <string name="error_server_unavailable">The server is temporarily unavailable. Please try again in a moment.</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_no_connection">You appear to be offline. Check your connection and try again.</string>
+    <string name="error_timeout">The server took too long to respond.</string>
+    <string name="error_session_expired">Your session has expired. Please sign in again.</string>
+    <string name="error_forbidden">You don\'t have permission to do that.</string>
+    <string name="error_invalid_device">This device isn\'t recognised. Try linking it again.</string>
+    <string name="error_configuration">This build is misconfigured. Please contact the Zillit team.</string>
+    <string name="error_unexpected_response">The server sent something unexpected.</string>
+
+    <!-- Home chat · units. Each unit is its own thread. -->
+    <string name="unit_show_all">Show all units</string>
+    <string name="unit_all_title">Units</string>
+    <string name="unit_private">Private unit</string>
+
+    <!-- Home chat -->
+    <string name="chat_message_hint">Message</string>
+    <string name="chat_attach">Attach a file</string>
+    <string name="chat_record">Record a voice message</string>
+    <string name="audio_play">Play</string>
+    <string name="audio_pause">Pause</string>
+    <string name="chat_recording_hint">Release to send · slide away to cancel</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_emoji">Emoji</string>
+    <string name="chat_keyboard">Keyboard</string>
+    <!-- %1$d is the upload percentage, 0-100. -->
+    <string name="chat_upload_percent">%1$d%%</string>
+    <string name="chat_send_failed_retry">Failed. Tap to retry</string>
+    <string name="chat_reply">Reply</string>
+
+    <!-- Long-press options. Labels carried over from v2 verbatim. -->
+    <string name="option_reply">Reply</string>
+    <string name="option_image_reply">Image Reply</string>
+    <string name="option_edit">Edit</string>
+    <string name="option_copy">Copy</string>
+    <string name="option_translate">Translate</string>
+    <string name="option_save">Save</string>
+    <string name="option_share">Share</string>
+    <string name="option_forward">Forward</string>
+    <string name="forward_read_only">Read only</string>
+    <string name="forward_project">Project</string>
+    <string name="forward_no_targets">Nothing to forward to in this project</string>
+    <string name="option_print">Print</string>
+    <string name="option_read_by_user">Read By User</string>
+    <string name="option_file_cabinet">File Cabinet</string>
+    <string name="option_distribute_to_dd">Publish to Doc Distribution</string>
+    <string name="option_gallery">Gallery</string>
+    <string name="option_delete">Delete</string>
+    <string name="chat_documents_only">Attach a document to post here</string>
+    <string name="chat_reply_hint">Write a reply…</string>
+    <string name="chat_reply_options">Reply options</string>
+    <string name="chat_editing_message">Editing message</string>
+    <!-- %1$d is the character limit. -->
+    <string name="word_limit_error">There is only %1$d Characters limit allowed to send</string>
+    <string name="chat_empty_title">Data not found yet</string>
+    <string name="chat_scroll_to_latest">Jump to latest</string>
+    <string name="chat_unread_divider">Unread messages</string>
+    <string name="chat_search_hint">Search in this chat</string>
+    <string name="chat_search_open">Search messages</string>
+    <string name="chat_search_next">Next match</string>
+    <string name="chat_search_previous">Previous match</string>
+    <string name="chat_search_close">Close search</string>
+    <string name="chat_read_more">Read more</string>
+    <string name="chat_read_less">Read less</string>
+    <!-- Chat library — v2's "Media / Docs / Links". -->
+    <string name="library_media">Media</string>
+    <string name="library_docs">Docs</string>
+    <string name="library_links">Links</string>
+    <string name="media_docs_links">Media, Docs &amp; Links</string>
+
+    <!-- Refusals. Copy carried over from v2 verbatim. -->
+    <string name="internet_connection_lost_please_check">Internet connection lost. Please check your internet connection and try again.</string>
+    <string name="you_dont_have_permission_to_delete_this_message">You Don\'t have permission to delete this message.</string>
+    <string name="you_cant_edit_other_user_message">You can\'t edit other users message</string>
+    <string name="you_cannot_delete_message_after_2_hrs">You can\'t delete message after 2 Hours</string>
+    <string name="home_unit_posting_right_msg">You do not have Posting Rights on this Home unit.</string>
+    <string name="msg_download_right">You do not have Downloading Rights</string>
+    <string name="you_cannot_delete_other_user_message">You have no permission to delete other user message.</string>
+    <string name="something_went_wrong">Something went wrong! Please try again later</string>
+
+    <!-- Translation. Copy carried over from v2 verbatim. -->
+    <string name="translated">Translated message:</string>
+    <string name="translate_failed">Could not translate this message</string>
+    <string name="translate_already_in_language">This message is already in your language</string>
+
+    <!-- Publish to Document Distribution. Copy carried over from v2. -->
+    <string name="only_media_can_be_distributed">Only media can be distributed</string>
+    <string name="you_dont_have_distribution_rights_on_this_unit">You don\'t have distribution rights on this unit</string>
+    <!-- %1$s is the file name. -->
+    <string name="dd_publish_confirm">Publish %1$s to Document Distribution?</string>
+    <string name="dd_publish_success">Published to Document Distribution</string>
+    <string name="dd_publish_failed">Could not publish to Document Distribution</string>
+    <string name="option_publish">Publish</string>
+
+    <!-- App preferences. Copy carried over from v2. -->
+    <string name="chat_font_size">Chat Font Size</string>
+    <string name="small">Small</string>
+    <string name="medium">Medium</string>
+    <string name="large">Large</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- History. %1$s is the unit or tool name. -->
+    <string name="history_title">History : %1$s</string>
+    <string name="history">History</string>
+    <string name="option_history">History</string>
+
+    <!-- Zillit Help. Copy carried over from v2 verbatim. -->
+    <string name="zillit_help">Zillit Help</string>
+    <string name="txt_help_contact">Contact us</string>
+    <string name="txt_help_faq">FAQ</string>
+    <string name="txt_help_use_zillit">How to use Zillit</string>
+    <string name="txt_help_privacy">Privacy Policy</string>
+    <string name="txt_help_reviews">Reviews</string>
+    <string name="txt_help_condition">Terms of Use</string>
+
+    <!-- Notifications. Copy carried over from v2 verbatim. -->
+    <string name="txt_notification">Notifications</string>
+    <string name="delete_all">Delete All</string>
+    <string name="no_notification">No notifications yet</string>
+    <string name="are_you_sure_you_want_to_delete_all_notification">Are you sure you want to delete all notification?</string>
+    <string name="are_you_sure_you_want_to_delete_this_notification">Are you sure you want delete this notification?</string>
+    <string name="no_app_to_open_file">No app on this device can open this file</string>
+    <string name="rety_text">Do you want to try again?</string>
+    <string name="this_file">Resend Message</string>
+    <!-- %1$d is how many files are waiting in the same batch. -->
+    <string name="upload_all_value">Upload all %1$d</string>
+    <string name="edited">Edited</string>
+
+    <!-- Multi-select over messages. Delete and Share act on a selection; Forward does not. -->
+    <string name="delete">Delete</string>
+    <string name="share">Share</string>
+    <string name="selected">Selected</string>
+    <string name="are_you_sure_you_want_to_delete">Are you sure you want to delete?</string>
+    <string name="p_choose_at_list_one_message_from_the_list">Please choose at least one message from the list.</string>
+    <string name="loading_please_wait">Loading! Please wait</string>
+    <string name="text_truncate_msg">Text truncated to %d characters to fit share limit</string>
+    <string name="message_not_delivered_yet">This message is not uploaded yet.</string>
+
+    <!-- Read By User. One screen for every chat surface; copy carried over from v2. -->
+    <string name="read_by_users">Read by users</string>
+    <string name="read_byr">Read by</string>
+    <string name="unread_users">Unread Users</string>
+    <string name="remaining">remaining</string>
+    <string name="txt_notify_users">Notify Users</string>
+    <string name="search_by_user_name">Search By User Name</string>
+    <string name="not_delivered">Not Delivered</string>
+    <string name="read">Read</string>
+    <string name="delivered">Delivered</string>
+
+    <!-- Call Sheet replace flow. Copy carried over from v2 verbatim. -->
+    <string name="alert">Alert</string>
+    <string name="call_sheet_continuation">Continuation</string>
+    <string name="call_sheet_continue_new">New</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="call_sheet_permission_first_msg">Are you uploading document in continuation of the existing Call Sheet or uploading a new Call Sheet, please click below</string>
+    <string name="call_sheet_permission_second_msg">Doing this will send all current data, posted here, to the History. It will be replaced with the new upload. Do you still want to proceed?</string>
+
+    <!-- Replies shown inside the message they answer. %1$d is the count. -->
+    <plurals name="chat_reply_count">
+        <item quantity="one">%1$d reply</item>
+        <item quantity="other">%1$d replies</item>
+    </plurals>
+    <string name="chat_no_posting_rights">You don\'t have posting rights in this unit.</string>
+
+    <!-- Attachment picker. Labels carried over from v2 verbatim. -->
+    <string name="attachment_choose_below">Choose below</string>
+    <string name="attachment_photo">Photo</string>
+    <string name="attachment_gallery">Gallery</string>
+    <string name="attachment_video">Video</string>
+    <string name="attachment_video_gallery">Video Gallery</string>
+    <string name="attachment_document">Document</string>
+    <string name="attachment_audio">Audio</string>
+    <string name="attachment_location">Location</string>
+    <string name="attachment_contact">Contact</string>
+    <string name="attachment_caption_hint">Add a caption…</string>
+    <string name="attachment_gallery_empty">Nothing here yet</string>
+    <!-- %1$d selected, %2$d is the cap. -->
+    <string name="attachment_selected_count">%1$d / %2$d</string>
+    <!-- %1$d is how many files will move to the preview screen. -->
+    <string name="attachment_next_count">%1$d selected</string>
+    <string name="action_next">Next</string>
+
+    <string name="attachment_permission_title">Permission needed</string>
+    <string name="attachment_permission_camera">Zillit needs camera access to take photos and videos. Enable Camera in Settings.</string>
+    <string name="attachment_permission_media">Zillit needs access to your photos and media to attach files. Enable it in Settings.</string>
+    <string name="attachment_permission_contacts">Zillit needs access to your contacts to share one. Enable Contacts in Settings.</string>
+    <string name="attachment_permission_location">Zillit needs location access to share your location. Enable Location in Settings.</string>
+    <string name="attachment_open_settings">Open Settings</string>
+
+    <!-- Media preview + image editor -->
+    <string name="preview_edit">Edit</string>
+    <string name="preview_remove">Remove</string>
+    <string name="preview_mute">Mute</string>
+    <string name="preview_add_more">Add more</string>
+    <string name="editor_undo">Undo</string>
+    <string name="editor_redo">Redo</string>
+    <string name="editor_delete">Delete</string>
+    <string name="editor_resize">Resize</string>
+    <string name="editor_move">Move</string>
+    <string name="editor_crop">Crop</string>
+    <string name="editor_rotate">Rotate</string>
+    <string name="editor_pencil">Draw</string>
+    <string name="editor_text">Text</string>
+    <string name="editor_emoji">Emoji</string>
+    <string name="editor_shape">Shape</string>
+    <string name="editor_add_text">Add text</string>
+
+    <!-- Content descriptions for screen readers -->
+    <string name="cd_project_avatar">Project %1$s</string>
+    <string name="cd_unread_count">%1$d unread</string>
+
+    <!-- Chat day separators. Copy matches v2. -->
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="tomorrow">Tomorrow</string>
+
+    <!-- Calendar. Copy matches v2's new_calendar module verbatim. -->
+    <string name="calendar_events">Events</string>
+    <string name="calendar_join_call">Join Call</string>
+    <string name="calendar_no_events_today">No events for this day</string>
+    <string name="calendar_all_day">All Day</string>
+    <string name="calendar_view_month">Month</string>
+    <string name="calendar_view_week">Week</string>
+    <string name="calendar_view_day">Day</string>
+    <string name="calendar_view_mode">Change view</string>
+    <string name="calendar_today_tag">TODAY</string>
+    <string name="calendar_agenda_today">Today\'s Events</string>
+    <string name="calendar_agenda_tomorrow">Tomorrow\'s Events</string>
+    <string name="calendar_previous">Previous</string>
+    <string name="calendar_next">Next</string>
+    <string name="calendar_new_event">New Event</string>
+    <string name="calendar_received_events">Received Events</string>
+    <string name="calendar_created_events">Created Events</string>
+    <string name="calendar_declined_events">Declined Events</string>
+    <string name="calendar_join_call_events">Join Call on Events</string>
+    <string name="calendar_event_cancelled">Cancelled: %1$s</string>
+    <string name="calendar_event_declined">Declined: %1$s</string>
+    <string name="calendar_event_untitled">(Untitled)</string>
+    <string name="calendar_events_on_day">%1$d events</string>
+
+    <!-- Event card + lists -->
+    <string name="calendar_accept">Accept</string>
+    <string name="calendar_reject">Reject</string>
+    <string name="calendar_expired">Expired</string>
+    <string name="calendar_excluded">Excluded</string>
+    <string name="calendar_see_invitees">See invitees</string>
+    <string name="calendar_all_day_suffix">(All day)</string>
+    <string name="calendar_status_pending">Pending</string>
+    <string name="calendar_status_accepted">Accepted</string>
+    <string name="calendar_status_rejected">Rejected</string>
+    <string name="calendar_repeat_daily">Daily</string>
+    <string name="calendar_repeat_weekly">Weekly</string>
+    <string name="calendar_repeat_monthly">Monthly</string>
+    <string name="calendar_repeat_yearly">Yearly</string>
+    <string name="calendar_repeat_custom">Custom</string>
+    <string name="calendar_repeat_recurring">Recurring</string>
+    <string name="calendar_repeat_until">· until %1$s</string>
+    <string name="calendar_tab_pending">Pending</string>
+    <string name="calendar_tab_accepted">Accepted</string>
+    <string name="calendar_tab_expired">Expired</string>
+    <string name="calendar_tab_members">Members</string>
+    <string name="calendar_tab_personal">Personal</string>
+    <string name="calendar_tab_received">Received</string>
+    <string name="calendar_tab_created">Created</string>
+    <string name="calendar_search_hint">Search events</string>
+    <string name="calendar_filter_today">Today</string>
+    <string name="calendar_filter_select_date">Select date</string>
+    <string name="calendar_filter_clear">Clear</string>
+    <string name="calendar_no_events">No events</string>
+    <string name="calendar_no_invitations">No invitations</string>
+    <string name="calendar_no_join_calls">No calls to join today</string>
+    <!-- Event detail sheet + accept/decline. Copy matches v2. -->
+    <string name="calendar_decline">Decline</string>
+    <string name="calendar_event_details">Event Details</string>
+    <string name="calendar_edit_event">Edit Event</string>
+    <string name="calendar_accept_invitation">Accept Invitation</string>
+    <string name="calendar_decline_invitation">Decline Invitation</string>
+    <string name="calendar_confirm_accept">Are you sure you want to accept this invitation?</string>
+    <string name="calendar_confirm_decline">Are you sure you want to decline this invitation?</string>
+    <string name="calendar_decline_reason_hint">Let the organizer know why you can\'t attend…</string>
+    <string name="calendar_decline_reason_label">REASON FOR DECLINING (OPTIONAL)</string>
+    <string name="calendar_apply_to">APPLY TO</string>
+    <string name="calendar_scope_single">This event only</string>
+    <string name="calendar_scope_this_and_future">This and following events</string>
+    <string name="calendar_scope_all">All events in this series</string>
+    <string name="calendar_pending_invitation">Pending invitation</string>
+    <string name="calendar_you_accepted">You accepted this event</string>
+    <string name="calendar_you_declined">You declined this event</string>
+    <string name="calendar_event_expired_notice">This event has expired</string>
+    <string name="calendar_event_cancelled_notice">This event has been cancelled</string>
+    <string name="calendar_week_of_year">Week %1$d of the Year</string>
+    <string name="calendar_description">DESCRIPTION</string>
+    <string name="calendar_event_color">EVENT COLOR</string>
+    <string name="calendar_created_by">Created by</string>
+    <string name="calendar_created_on">Created on</string>
+    <string name="calendar_creator_excluded">- Excluded</string>
+    <string name="calendar_tap_to_view_invitees">Tap to view and search</string>
+    <string name="calendar_recurring">Recurring</string>
+    <string name="calendar_type_members">Members</string>
+    <string name="calendar_type_personal">Personal</string>
+    <string name="calendar_call_audio">Audio Call</string>
+    <string name="calendar_call_video">Video Call</string>
+    <string name="calendar_call_in_person">Meet in Person</string>
+    <string name="calendar_call_in_person_call">Meet in Person &amp; Call</string>
+    <string name="calendar_reminder_minutes">%1$d minutes before</string>
+    <string name="calendar_reminder_hour">1 hour before</string>
+    <string name="calendar_invitees_title">Invitees</string>
+    <string name="calendar_search_invitees">Search invitees</string>
+    <string name="calendar_no_invitees">No invitees</string>
+    <string name="calendar_accepted_invitation">Invitation accepted</string>
+    <string name="calendar_declined_invitation">Invitation declined</string>
+    <string name="calendar_action_failed">Could not complete that. Try again.</string>
+    <string name="calendar_timezone_note">Times shown in %1$s</string>
+
+    <!-- "1 hour", not v2's "1 hours". -->
+    <string name="calendar_duration_hours">Duration: %1$s</string>
+    <plurals name="calendar_duration_hour_unit">
+        <item quantity="one">%1$s hour</item>
+        <item quantity="other">%1$s hours</item>
+    </plurals>
+    <plurals name="calendar_duration_minutes">
+        <item quantity="one">Duration: %1$d minute</item>
+        <item quantity="other">Duration: %1$d minutes</item>
+    </plurals>
+
+    <string name="calendar_view_occurrences">View Full Event Details</string>
+    <string name="calendar_hide_occurrences">Hide Full Event Details</string>
+    <string name="calendar_cancelled">Cancelled</string>
+
+    <!-- Event form -->
+    <string name="calendar_new_event_title">New Event</string>
+    <string name="calendar_edit_event_title">Edit Event</string>
+    <string name="calendar_title_hint">Add title</string>
+    <string name="calendar_description_hint">Add a description or agenda…</string>
+    <string name="calendar_full_day">Full Day</string>
+    <string name="calendar_date">START DATE</string>
+    <string name="calendar_starts">START</string>
+    <string name="calendar_ends">END</string>
+    <string name="calendar_timezone">TIMEZONE</string>
+    <string name="calendar_event_type">Event type</string>
+    <string name="calendar_call_type">CALL TYPE</string>
+    <string name="calendar_call_none">No call</string>
+    <string name="calendar_location_hint">Add location</string>
+    <string name="calendar_reminder">REMINDER</string>
+    <string name="calendar_reminder_none">None</string>
+    <string name="calendar_repeat">REPEAT</string>
+    <string name="calendar_repeat_none">Does not repeat</string>
+    <string name="calendar_repeat_ends">REPEAT UNTIL</string>
+    <string name="calendar_repeat_days">Repeat on</string>
+    <string name="calendar_invitees_label">Invitees</string>
+    <string name="calendar_select_invitees">Add Invitees</string>
+    <string name="calendar_select_all">Select all</string>
+    <string name="calendar_done_count">Done (%1$d)</string>
+    <string name="calendar_external_guests">EXTERNAL GUESTS</string>
+    <string name="calendar_email_hint">Enter email address</string>
+    <string name="calendar_add">Add</string>
+    <string name="calendar_exclude_me">The organizer will not be a part of this event</string>
+    <string name="calendar_save">Save</string>
+    <string name="calendar_create">Create Event</string>
+    <string name="calendar_none_selected">None</string>
+    <string name="calendar_invitee_summary">%1$d selected</string>
+
+    <!-- Form validation. Copy matches v2. -->
+    <string name="calendar_error_title">Title must be at least 3 characters</string>
+    <string name="calendar_error_start_past">Start time can\'t be in the past — pick a later time</string>
+    <string name="calendar_error_duration">End time must be at least %1$d minutes after start time</string>
+    <string name="calendar_error_recurrence_end">Repeat end date is required</string>
+    <string name="calendar_error_recurrence_before">Repeat end date must be on or after the event date</string>
+    <string name="calendar_error_invitees">At least one invitee or external guest is required</string>
+    <string name="calendar_error_call_type">Call type is required</string>
+    <string name="calendar_error_location">Location is required for Meet in Person &amp; Call events</string>
+    <string name="calendar_adjusted_end">End time moved to keep at least %1$d minutes</string>
+    <string name="calendar_event_created">Event created</string>
+    <string name="calendar_event_updated">Event updated</string>
+
+    <!-- Delete. Recurring events pick a scope instead of a plain confirm. -->
+    <string name="calendar_delete_confirm">Are you sure you want to delete this event?</string>
+    <string name="calendar_delete_scope_title">Delete recurring event</string>
+    <string name="calendar_delete_scope_single">This event</string>
+    <string name="calendar_delete_scope_all">All events</string>
+    <string name="calendar_deleted">Event deleted</string>
+
+    <!-- Device-calendar sync. Copy matches v2. -->
+    <string name="sync_section_title">Sync to phone calendar</string>
+    <string name="sync_toggle_label">Add Zillit events to my phone calendar</string>
+    <string name="sync_toggle_summary">Mirrors created and accepted events into your device calendar so they appear on the lock screen and in Google/Apple Calendar.</string>
+    <string name="sync_status_healthy">Up to date</string>
+    <string name="sync_status_pending">%1$d change(s) waiting to sync</string>
+    <string name="sync_status_failed">%1$d change(s) could not sync</string>
+    <string name="sync_status_permission">Calendar permission is needed</string>
+    <string name="sync_status_no_calendar">No writable calendar on this device</string>
+    <string name="sync_action_grant">Grant permission</string>
+    <string name="sync_action_retry">Retry</string>
+    <string name="sync_change_calendar">Change target calendar</string>
+    <string name="sync_action_sync_now">Sync now</string>
+    <string name="sync_action_reset">Reset and re-sync all</string>
+    <string name="sync_target">Writing to %1$s</string>
+    <string name="sync_select_calendar">Select calendar</string>
+    <string name="calendar_settings">Calendar settings</string>
+
+    <string name="sync_action_open_settings">Open Settings</string>
+    <string name="sync_action_diagnose">Diagnose</string>
+    <string name="sync_diagnose_title">Sync diagnostics</string>
+    <string name="sync_diagnose_copy">Copy</string>
+    <string name="sync_diagnose_copied">Diagnostics copied</string>
+    <string name="sync_permission_blocked">Calendar access was turned off. Enable it in Settings to sync.</string>
+    <string name="calendar_section_event">EVENT</string>
+    <string name="calendar_section_details">Details</string>
+    <string name="calendar_section_people">PEOPLE</string>
+    <string name="calendar_field_title">TITLE</string>
+    <string name="calendar_field_color">COLOR</string>
+    <string name="calendar_field_description">DESCRIPTION</string>
+    <string name="calendar_field_location">LOCATION</string>
+    <string name="calendar_field_invite_members">INVITE MEMBERS</string>
+    <string name="calendar_end_date">END DATE</string>
+    <string name="calendar_select_date">Select date</string>
+    <string name="calendar_add_invitees">Add Invitees</string>
+    <string name="calendar_add_external_guests">Add External Guests</string>
+    <string name="calendar_clear">Clear</string>
+    <string name="calendar_change">Change</string>
+    <string name="calendar_update_event">Update Event</string>
+    <!-- Invitee picker tabs + external guests. v2 copy verbatim. -->
+    <string name="calendar_tab_all_departments">All Departments</string>
+    <string name="calendar_tab_select_department">Select Department</string>
+    <string name="calendar_tab_select_users">Select Users</string>
+    <string name="calendar_search_external">Search name or email</string>
+    <string name="calendar_no_external_match">No matching guest found</string>
+    <string name="calendar_department_members">%1$d members</string>
+    <string name="calendar_department_partial">%1$d of %2$d selected</string>
+
+    <!-- From v2's Add/Update External User page, verbatim. -->
+    <string name="add_external_user">Add External User</string>
+    <string name="update_external_user">Update External User</string>
+    <string name="full_name">Full Name</string>
+    <string name="email">Email</string>
+    <string name="phone">Phone</string>
+    <string name="country">Country</string>
+    <string name="gender">Gender</string>
+    <string name="select_department">Select Department</string>
+    <string name="select_designation">Select Designation</string>
+    <string name="submit">Submit</string>
+    <string name="update">Update</string>
+    <string name="user_type">User Type</string>
+    <string name="enter_other_type">Enter Other Type</string>
+    <string name="others">others</string>
+    <string name="p_enter_full_name">Please Enter Full Name</string>
+    <string name="p_enter_valid_input_special_char_msg">Special characters are not allowed. Please enter a valid input.</string>
+    <string name="p_enter_email">Please Enter Email</string>
+    <string name="p_enter_valid_email">Please Enter Valid Email.</string>
+    <string name="user_type_required">Please Choose User Type</string>
+    <string name="please_select_department">Please select your department</string>
+    <string name="please_select_designation">Please select designation</string>
+    <string name="p_choose_country">Please Choose Country</string>
+    <string name="p_enter_valid_phone_number">Phone number must be minimum 5 and maximum 20 digit. Please enter correct phone number first</string>
+    <string-array name="gender_type2">
+        <item>Male</item>
+        <item>Female</item>
+        <item>Non-Binary</item>
+    </string-array>
+
+    <!--
+      Custom colour. v2 has presets only, so there is no approved copy for these two —
+      confirm the wording before release.
+    -->
+    <string name="calendar_color_presets">Presets</string>
+    <string name="calendar_color_custom">Custom</string>
+
+    <!--
+      The shared location picker. Copy is v2's map_picker_* set verbatim.
+      map_picker_clear is the one addition: v2's Clear button points at @string/clear,
+      which reads "Clear Signature" — a wrong reference, not approved copy to carry over.
+    -->
+    <string name="map_picker_title">Pick Location</string>
+    <string name="map_picker_confirm">Confirm</string>
+    <string name="map_picker_clear">Clear</string>
+    <string name="map_picker_search_hint">Search for a place or address</string>
+    <string name="map_picker_search_unavailable">Search is unavailable. Set MAPS_API_KEY in local.properties to enable.</string>
+    <string name="map_picker_default_hint">Move the map to pick a location</string>
+    <string name="map_picker_pin_desc">Location pin</string>
+    <string name="map_picker_my_location">Use my location</string>
+    <string name="map_picker_permission_denied">Location permission was denied. You can still pan the map to pick a spot.</string>
+    <string name="map_picker_no_fix">Couldn\'t get your current location.</string>
+
+    <string name="calendar_show_decliners">Show decliners</string>
+    <string name="calendar_hide_decliners">Hide decliners</string>
+    <string name="calendar_request_reason">Request reason</string>
+    <plurals name="calendar_declined_count">
+        <item quantity="one">%1$d declined</item>
+        <item quantity="other">%1$d declined</item>
+    </plurals>
+
+    <plurals name="calendar_invitees">
+        <item quantity="one">%1$d invitee</item>
+        <item quantity="other">%1$d invitees</item>
+    </plurals>
+    <!--
+      Settings landing page. Every title and every ⓘ blurb is v2's own text, taken from
+      `fragment_settings` and `SettingPage`; the layout differs, the words do not.
+    -->
+    <string name="settings_title">Settings</string>
+    <string name="app_preferences">App Preferences</string>
+    <string name="app_permission_info">Mute notifications, set default opening tabs, app lock.</string>
+    <string name="connect_to_zillit_from_your_laptop">Connect to Zillit from your laptop</string>
+    <string name="connect_to_zillit_info_admin_user">Allows your phone to sync with your laptop or desktop so you can work from it.</string>
+    <string name="edit_my_profile">Edit My Profile</string>
+    <string name="edit_profile_info_admin_user">Change name, designation, photo, etc.. See your private email i.d. for the project.</string>
+    <string name="invite_users">Invite Users</string>
+    <string name="invite_info">Code; to be shared with others to join the project.</string>
+    <string name="consent_settings_entry">Privacy preferences</string>
+    <string name="consent_settings_entry_info">Choose what Zillit may collect, or withdraw your consent. Your choice is recorded so we can show what you agreed to and when.</string>
+    <string name="recovery_email_txt">Recovery Code or Email</string>
+    <string name="recovery_email_info">Add/Edit your recovery email for recovering your project in case you loose your phone or change your phone.</string>
+    <string name="update_app">Update App</string>
+    <!-- %1$s is the installed app version. -->
+    <string name="update_app_info_admin_user">Current app version is %1$s. Updates on the app will be listed here.</string>
+    <string name="tooltip_user_85">Shows information relating to Zillit.</string>
+    <string name="account_settings">Account Setting</string>
+    <string name="account_settings_info">Create different units like General, Petty Cash, Payroll etc.</string>
+    <string name="catering_settings">Catering Settings</string>
+    <string name="catering_settings_info">Create different units like Breakfast, Launch, Dinner, 2nd Meal etc.</string>
+    <string name="admin_settings">Admin Settings</string>
+    <string name="leave_this_project">Leave This Project</string>
+    <string name="leave_project_info_admin">Allows you to leave the project. Admin can only leave if there is another Admin on the project. Once you leave the project you can come back again only through \'Join a Project\'.</string>
+    <string name="leave_project_info_user">Allows you to leave the project. Once you leave the project you can come back again only through \'Join a Project\'.</string>
+    <string name="are_you_sure_you_want_to_leave_the_project">Are you sure you want to leave the project?</string>
+    <string name="settings_coming_soon">This page is not built yet.</string>
+
+    <!-- The ⓘ dialog. v2's copy: `watch_video`, `more`, `tutorial`. -->
+    <string name="watch_video">Watch Video</string>
+    <string name="more">More</string>
+    <string name="tutorial">Tutorial</string>
+
+</resources>

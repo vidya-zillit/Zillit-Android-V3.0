@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paths the app is willing to hand out through FileProvider.
+
+  Scoped to the two directories the attachment layer owns, not the whole cache: a
+  FileProvider that exposes more than it needs hands any app that receives a URI a wider
+  grant than the feature requires.
+-->
+<paths>
+    <!-- Camera captures and staged copies of picked files. -->
+    <cache-path name="attachments" path="attachments/" />
+    <!-- Downloaded attachments the user opens in another app. -->
+    <files-path name="downloads" path="downloads/" />
+</paths>
