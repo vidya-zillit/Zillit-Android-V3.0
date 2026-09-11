@@ -49,6 +49,15 @@ object SocketEvents {
 
     // ── Chat ──────────────────────────────────────────────────────────────
     const val USER_JOIN = "user:join"
+
+    /*
+     * Calling, not yet built in v3. When it lands, the token-auth spec (Aug 2026) requires
+     * `user_id` in the payload of `call:end`, `call:join` and `call:migrated`, and both
+     * `user_id` and `projectId` on `call:get-active-group-calls` — a token socket
+     * identifies the device, so the acting user must ride in the payload. v2's
+     * getActiveCallList emit omitted it and has been silently receiving
+     * `unauthorized_user`; do not copy that.
+     */
     const val PRIVATE_CHAT = "private_chat"
     const val GROUP_CHAT = "group_chat"
     const val CHAT_ROOM_CREATE = "chat-room:create"

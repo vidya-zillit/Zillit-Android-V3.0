@@ -42,6 +42,7 @@ class ProjectBootstrapper @Inject constructor(
     private val socketManager: SocketManager,
     private val storageCredentials: StorageCredentialsStore,
     private val chatSocketBridge: ChatSocketBridge,
+    private val tokenSession: com.zillit.zillitapp.core.auth.TokenSession,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
 
@@ -64,6 +65,10 @@ class ProjectBootstrapper @Inject constructor(
         isPendingUser: Boolean = false,
     ) {
         session.setActiveProject(SessionStore.ActiveProject(projectId, userId, enterpriseClientId))
+        // Mint the project token before anything fetches, so the very first call already
+        // rides the Bearer header instead of paying a 401-and-retry. No-op while the token
+        // flag is off, and never fatal — moduledata still stands behind it.
+        scope.launch { tokenSession.establish(projectId) }
         socketManager.start()
         chatSocketBridge.start()
 

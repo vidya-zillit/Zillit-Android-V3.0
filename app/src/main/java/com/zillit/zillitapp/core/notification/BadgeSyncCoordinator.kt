@@ -64,6 +64,7 @@ class BadgeSyncCoordinator @Inject constructor(
     private val notificationRepository: NotificationRepository,
     private val networkMonitor: NetworkMonitor,
     private val json: Json,
+    private val errorLog: com.zillit.zillitapp.core.errorlog.ErrorLogReporter,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
 
@@ -109,10 +110,18 @@ class BadgeSyncCoordinator @Inject constructor(
         // and would otherwise re-sync for nothing.
         scope.launch {
             ProcessLifecycleOwner.get().lifecycle.eventFlow
-                .filter { it == Lifecycle.Event.ON_START }
-                .collectLatest {
-                    requestMissedNotifications()
-                    syncNow()
+                .filter { it == Lifecycle.Event.ON_START || it == Lifecycle.Event.ON_STOP }
+                .collectLatest { event ->
+                    if (event == Lifecycle.Event.ON_START) {
+                        // The error log gets the transition (the timeline between
+                        // failures) and a chance to ship anything queued offline.
+                        errorLog.reportLifecycle("app_foreground")
+                        errorLog.flushPending()
+                        requestMissedNotifications()
+                        syncNow()
+                    } else {
+                        errorLog.reportLifecycle("app_background")
+                    }
                 }
         }
 

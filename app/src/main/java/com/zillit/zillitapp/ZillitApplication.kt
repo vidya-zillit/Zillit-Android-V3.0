@@ -46,6 +46,9 @@ class ZillitApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
+    @Inject
+    lateinit var errorLogReporter: com.zillit.zillitapp.core.errorlog.ErrorLogReporter
+
     /**
      * WorkManager needs Hilt's factory to build [com.zillit.zillitapp.core.storage.UploadWorker],
      * which injects the S3 client and the chat repository. Provided here rather than via
@@ -64,6 +67,19 @@ class ZillitApplication : Application(), Configuration.Provider {
         // Registered for the process lifetime: the socket's recovery logic subscribes to
         // this, so it has to be live before any screen asks for a connection.
         networkMonitor.start()
+
+        // Crash reporting into the shared error log. The event is queued synchronously —
+        // the process is dying — and ships with the next batch after relaunch; the
+        // previous handler still runs so the system crash dialog and ANR pipeline behave
+        // exactly as before.
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching { errorLogReporter.reportCrash(throwable) }
+            previousHandler?.uncaughtException(thread, throwable)
+        }
+
+        // Anything queued before the last death — crashes especially — ships now.
+        errorLogReporter.flushPending()
 
         // Makes `"<user_id>".userDetails()` work anywhere. Installed here rather than
         // injected at each call site because the call sites are extension functions on

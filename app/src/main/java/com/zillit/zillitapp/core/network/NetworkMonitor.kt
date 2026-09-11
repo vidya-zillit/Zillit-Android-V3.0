@@ -102,4 +102,18 @@ class NetworkMonitor @Inject constructor(
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
+
+    /** Which pipe the device is on — for the error-log envelope's `network` field. */
+    enum class Transport { WIFI, CELLULAR, NONE, OTHER }
+
+    fun transportKind(): Transport {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+            ?: return Transport.OTHER
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return Transport.NONE
+        return when {
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> Transport.WIFI
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> Transport.CELLULAR
+            else -> Transport.OTHER
+        }
+    }
 }

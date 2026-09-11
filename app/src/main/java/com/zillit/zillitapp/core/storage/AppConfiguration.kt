@@ -27,6 +27,13 @@ data class AppConfiguration(
     val boxClientSecret: String = "",
     /** Not a credential — where to send a user on a forced-update prompt. */
     val appDownloadUrl: String = "",
+    /**
+     * Whether this environment wants bearer tokens instead of the `moduledata` header.
+     *
+     * Off by default, and the server accepts both during the migration, so the token code
+     * ships dormant and activates when the flag flips.
+     */
+    val tokenAuthEnabled: Boolean = false,
 ) {
     val hasAwsKeys: Boolean get() = awsAccessKey.isNotBlank() && awsSecretKey.isNotBlank()
     val hasBoxApp: Boolean get() = boxClientId.isNotBlank() && boxClientSecret.isNotBlank()
@@ -50,4 +57,6 @@ internal data class ConfigurationDto(
     @SerialName("box_client_id") val boxClientId: String? = null,
     @SerialName("box_client_secret") val boxClientSecret: String? = null,
     @SerialName("app_download_url") val appDownloadUrl: String? = null,
+    /** Not encrypted — a plain feature flag. */
+    @SerialName("token_auth_enabled") val tokenAuthEnabled: Boolean? = null,
 )

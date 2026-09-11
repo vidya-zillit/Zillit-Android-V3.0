@@ -87,6 +87,7 @@ android {
             urlField("INTEGRATIONS_BASE_URL", "STG_INTEGRATIONS_BASE_URL")
             urlField("DOC_DISTRIBUTION_BASE_URL", "STG_DOC_DISTRIBUTION_BASE_URL")
             urlField("CALENDAR_BASE_URL", "STG_CALENDAR_BASE_URL")
+            urlField("LOCATION_BASE_URL", "STG_LOCATION_BASE_URL")
             urlField("ENCRYPTION_KEY", "STG_ENCRYPTION_KEY")
             urlField("IV_KEY", "STG_IV_ENCRYPTION_KEY")
         }
@@ -103,6 +104,7 @@ android {
             urlField("INTEGRATIONS_BASE_URL", "QA_INTEGRATIONS_BASE_URL")
             urlField("DOC_DISTRIBUTION_BASE_URL", "QA_DOC_DISTRIBUTION_BASE_URL")
             urlField("CALENDAR_BASE_URL", "QA_CALENDAR_BASE_URL")
+            urlField("LOCATION_BASE_URL", "QA_LOCATION_BASE_URL")
             urlField("ENCRYPTION_KEY", "QA_ENCRYPTION_KEY")
             urlField("IV_KEY", "QA_IV_ENCRYPTION_KEY")
         }
@@ -117,6 +119,7 @@ android {
             urlField("INTEGRATIONS_BASE_URL", "PROD_INTEGRATIONS_BASE_URL")
             urlField("DOC_DISTRIBUTION_BASE_URL", "PROD_DOC_DISTRIBUTION_BASE_URL")
             urlField("CALENDAR_BASE_URL", "PROD_CALENDAR_BASE_URL")
+            urlField("LOCATION_BASE_URL", "PROD_LOCATION_BASE_URL")
             urlField("ENCRYPTION_KEY", "PROD_ENCRYPTION_KEY")
             urlField("IV_KEY", "PROD_IV_ENCRYPTION_KEY")
         }

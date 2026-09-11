@@ -104,6 +104,8 @@ class SocketManager @Inject constructor(
     private val crypto: ZillitCrypto,
     private val json: Json,
     private val networkMonitor: NetworkMonitor,
+    private val tokenSession: dagger.Lazy<com.zillit.zillitapp.core.auth.TokenSession>,
+    private val errorLog: dagger.Lazy<com.zillit.zillitapp.core.errorlog.ErrorLogReporter>,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
 
@@ -205,17 +207,21 @@ class SocketManager @Inject constructor(
                 return
             }
 
-            val handshake = buildHandshakeOrNull()
-            if (handshake == null) {
+            // The credential is chosen **now**, at this attempt — never captured earlier.
+            // A reconnect hours after startup must present the current token, not the one
+            // the process began with; that is the spec's Rule 1, and it is why every
+            // rebuild path funnels through here.
+            val auth = buildAuthOrNull()
+            if (auth == null) {
                 _connectionState.value = SocketConnectionState.Failed(
                     "Encryption key material missing for this build flavour",
                 )
                 return
             }
 
-            ZillitLog.socket("Connecting to ${BuildConfig.CHAT_BASE_URL}")
+            ZillitLog.socket("Connecting to ${BuildConfig.CHAT_BASE_URL} (${auth.kind})")
             _connectionState.value = SocketConnectionState.Connecting
-            socket = createSocket(handshake).also { it.connect() }
+            socket = createSocket(auth).also { it.connect() }
         }
     }
 
@@ -228,11 +234,24 @@ class SocketManager @Inject constructor(
         ensureConnected()
     }
 
-    private fun buildHandshakeOrNull(): String? = crypto
-        .encrypt(json.encodeToString(SocketHandshake.serializer(), SocketHandshake(session.deviceId)))
-        .takeIf { it.isNotEmpty() }
+    /** What the handshake presents: a bearer token in token mode, else moduledata. */
+    private class SocketAuth(val kind: String, val payload: Map<String, String>)
 
-    private fun createSocket(handshake: String): Socket {
+    private fun buildAuthOrNull(): SocketAuth? {
+        // Device token, not a project token: the socket is one connection per app instance
+        // and outlives project switches, so its identity is the device.
+        tokenSession.get().currentDeviceToken()?.let { token ->
+            return SocketAuth(kind = "token", payload = mapOf("token" to token))
+        }
+
+        val handshake = crypto
+            .encrypt(json.encodeToString(SocketHandshake.serializer(), SocketHandshake(session.deviceId)))
+            .takeIf { it.isNotEmpty() }
+            ?: return null
+        return SocketAuth(kind = "moduledata", payload = mapOf(ApiHeaders.MODULE_DATA to handshake))
+    }
+
+    private fun createSocket(credential: SocketAuth): Socket {
         val options = IO.Options().apply {
             // Off, as v2 has it. socket.io's own retry reuses the `auth` map it was built
             // with, so every attempt replays the same encrypted handshake against a server
@@ -242,7 +261,7 @@ class SocketManager @Inject constructor(
             reconnection = false
             // Never reuse a cached Manager — see the class doc.
             forceNew = true
-            auth = mapOf(ApiHeaders.MODULE_DATA to handshake)
+            auth = credential.payload
         }
 
         return IO.socket(BuildConfig.CHAT_BASE_URL, options).apply {
@@ -264,12 +283,39 @@ class SocketManager @Inject constructor(
                 joinUser(this)
             }
             on(Socket.EVENT_DISCONNECT) { args ->
-                ZillitLog.socket("DISCONNECTED reason=${args.firstOrNull()}")
+                val reason = args.firstOrNull()?.toString().orEmpty()
+                ZillitLog.socket("DISCONNECTED reason=$reason")
+                // "io client disconnect" is us hanging up on purpose — not a failure.
+                if (reason != "io client disconnect") {
+                    errorLog.get().reportSocketEvent(
+                        name = "socket_disconnected",
+                        errorMessage = reason,
+                    )
+                }
                 scheduleRebuild()
             }
             on(Socket.EVENT_CONNECT_ERROR) { args ->
-                ZillitLog.socketWarn("CONNECT_ERROR ${args.firstOrNull()}")
-                scheduleRebuild()
+                val message = args.firstOrNull()?.toString().orEmpty()
+                ZillitLog.socketWarn("CONNECT_ERROR $message")
+                errorLog.get().reportSocketEvent(
+                    name = "socket_connect_failed",
+                    errorMessage = message,
+                )
+
+                // Rule 3: a handshake rejected for a dead token is fixed by refreshing,
+                // not by retrying — a plain rebuild would re-ship the same dead token
+                // forever. The refresh is the API's own single-flight one, so a socket
+                // rejection and an API 401 arriving together still rotate exactly once.
+                if (message.contains(com.zillit.zillitapp.core.auth.TokenErrors.INVALID_TOKEN)) {
+                    scope.launch {
+                        tokenSession.get().refresh()
+                        // Whatever the outcome, reconnect: with a fresh token if the
+                        // refresh worked, and by moduledata fallback if the feature died.
+                        scheduleRebuild()
+                    }
+                } else {
+                    scheduleRebuild()
+                }
             }
         }
     }
@@ -342,6 +388,16 @@ class SocketManager @Inject constructor(
 
             rebuildJob = scope.launch {
                 delay(delayMs)
+
+                // The retry loop goes through the token check (the spec calls this out for
+                // Android specifically): if the stored token has expired while we waited,
+                // refresh before the attempt — otherwise the loop presents a dead token
+                // indefinitely and every attempt fails the same way.
+                val tokens = tokenSession.get()
+                if (tokens.enabled.value && tokens.currentDeviceToken() == null) {
+                    tokens.refresh()
+                }
+
                 // A network the client cannot reach makes this pointless; the network
                 // observers re-drive it the moment one appears.
                 if (networkMonitor.isOnline.value) forceReconnect() else ensureConnected()

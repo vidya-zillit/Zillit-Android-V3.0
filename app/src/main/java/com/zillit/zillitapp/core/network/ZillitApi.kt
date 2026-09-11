@@ -1,5 +1,6 @@
 package com.zillit.zillitapp.core.network
 
+import com.zillit.zillitapp.core.auth.TokenErrors
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.network.sockets.ConnectTimeoutException
@@ -53,6 +54,9 @@ class ZillitApi @Inject constructor(
     private val chatGptTokenProvider: ChatGptTokenProvider,
     private val apiLogger: com.zillit.zillitapp.core.logging.ApiLogger,
     private val networkMonitor: NetworkMonitor,
+    private val tokenSession: dagger.Lazy<com.zillit.zillitapp.core.auth.TokenSession>,
+    private val errorLog: dagger.Lazy<com.zillit.zillitapp.core.errorlog.ErrorLogReporter>,
+    private val session: com.zillit.zillitapp.core.session.SessionStore,
 ) {
 
     suspend inline fun <reified T> get(
@@ -152,9 +156,15 @@ class ZillitApi @Inject constructor(
         val startedAt = System.currentTimeMillis()
         var statusCode = 0
         var responseText: String? = null
+        // Set when this attempt presented a bearer token, so a 401 can be read as "the
+        // token died" rather than "the server said no".
+        var usedToken = false
+        // Guards the single retry the spec allows. A second 401 is a real one.
+        var retried = false
 
         val result: ApiResult<T> = try {
-            val headers = buildHeaders(module, bodyJson, projectOverride)
+            var headers = buildHeaders(module, bodyJson, projectOverride)
+                ?.also { usedToken = it.containsKey(ApiHeaders.AUTHORIZATION) && module.sendsModuleData }
             if (headers == null) {
                 ApiResult.Failure(
                     ApiError.Configuration(
@@ -162,17 +172,61 @@ class ZillitApi @Inject constructor(
                     ),
                 )
             } else {
-                val response = client.request(url) {
+                suspend fun send(with: Map<String, String>): HttpResponse = client.request(url) {
                     this.method = method
-                    headers.forEach { (name, value) -> header(name, value) }
+                    with.forEach { (name, value) -> header(name, value) }
                     query.forEach { (key, value) -> parameter(key, value) }
                     if (bodyJson != null) {
                         contentType(ContentType.Application.Json)
                         setBody(bodyJson)
                     }
                 }
+
+                var response = send(headers)
+                var text = response.bodyAsText()
+
+                // The token paths, in the order the spec describes them.
+                //
+                // 401 → refresh once, then retry once. Deliberately *not* a logout: v2's
+                // rule was 401 = sign out, and keeping that would sign people out every
+                // time an hour passed.
+                if (response.status.value == 401 && usedToken && !retried) {
+                    retried = true
+                    val projectId = projectOverride?.projectId ?: session.activeProject.value?.projectId
+                    val tokens = tokenSession.get()
+
+                    // A scope error means the wrong *kind* of token, not a dead one — the
+                    // fix is a project token, not a refresh.
+                    if (extractBackendMessage(text) == TokenErrors.INVALID_SCOPE) {
+                        projectId?.let { tokens.invalidateProject(it) }
+                    }
+
+                    val renewed = if (extractBackendMessage(text) == TokenErrors.INVALID_SCOPE) {
+                        projectId?.let { tokens.establish(it) } == true
+                    } else {
+                        tokens.refresh(projectId)
+                    }
+
+                    if (renewed) {
+                        headers = buildHeaders(module, bodyJson, projectOverride) ?: headers
+                        response = send(headers)
+                        text = response.bodyAsText()
+                    }
+                }
+
+                // 503 kill-switch: the feature is off server-side. Turn it off locally and
+                // repeat the call the old way — moduledata still works throughout the
+                // migration, so this must not surface as an error.
+                if (response.status.value == 503 &&
+                    extractBackendMessage(text) == TokenErrors.AUTH_DISABLED
+                ) {
+                    tokenSession.get().setEnabled(false)
+                    headers = buildHeaders(module, bodyJson, projectOverride) ?: headers
+                    response = send(headers)
+                    text = response.bodyAsText()
+                }
+
                 statusCode = response.status.value
-                val text = response.bodyAsText()
                 responseText = text
                 handleResponse(response, text, deserializer)
             }
@@ -191,6 +245,20 @@ class ZillitApi @Inject constructor(
             ApiResult.Failure(ApiError.NoConnection(e.message ?: "Network unavailable"))
         } catch (e: Exception) {
             ApiResult.Failure(ApiError.Unknown(e.message ?: e::class.java.simpleName))
+        }
+
+        // Failures go to the server-side error log — the same funnel as the local one, so
+        // no failing path can slip past it. Successes are deliberately not sent (spec
+        // rule 8: log the failure, not the noise).
+        (result as? ApiResult.Failure)?.let { failure ->
+            errorLog.get().reportApiFailure(
+                url = url,
+                method = method.value,
+                status = statusCode.takeIf { it > 0 },
+                errorMessage = failure.error.message.ifBlank { failure.error::class.java.simpleName },
+                request = bodyJson,
+                response = responseText,
+            )
         }
 
         // Single logging point: every outcome funnels through here, so no path can be
@@ -235,6 +303,28 @@ class ZillitApi @Inject constructor(
                     "Accept" to
                         "application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8",
                 )
+            }
+        }
+
+        // Token mode: the bearer replaces moduledata entirely — no encrypted blob, and so
+        // no body hash, which existed only to sign that blob. Everything else about the
+        // request is unchanged, which is the whole point of the migration. Only for the
+        // variants whose moduledata is exactly the device/project/user triple the token
+        // carries — see [ModuleData.tokenEligible].
+        val projectId = projectOverride?.projectId ?: session.activeProject.value?.projectId
+        val bearer = if (module.tokenEligible) {
+            tokenSession.get().currentProjectToken(projectId)
+        } else {
+            null
+        }
+        bearer?.let { token ->
+            lastModuleDataPlain = null
+            return buildMap {
+                put(ApiHeaders.AUTHORIZATION, "Bearer $token")
+                put(ApiHeaders.DEVICE_INFO, deviceInfo.asHeader())
+                if (module.sendsTimezone) {
+                    put(ApiHeaders.TIMEZONE, Calendar.getInstance().timeZone.id)
+                }
             }
         }
 

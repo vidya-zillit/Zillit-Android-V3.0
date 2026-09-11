@@ -18,6 +18,22 @@ object ApiEndpoints {
     private const val V2 = "${BASE}api/v2/"
     private const val PRESET = "${V2}preset/"
 
+    /**
+     * Bearer-token session. These three are the only endpoints that still present
+     * `moduledata` (or a refresh token) rather than a project token — they are what mints
+     * one.
+     */
+    object ErrorLog {
+        /** The shared error-log sink — every platform posts the schema-v1 envelope here. */
+        const val POST = "${BuildConfig.LOCATION_BASE_URL}api/v2/location/log"
+    }
+
+    object Session {
+        const val DEVICE = "${V2}session/device"
+        const val PROJECT = "${V2}session/project"
+        const val REFRESH = "${V2}session/device/refresh"
+    }
+
     object Project {
         /** GET returns the caller's projects; POST creates one. Same path, as in v2. */
         const val LIST = "${V2}project"

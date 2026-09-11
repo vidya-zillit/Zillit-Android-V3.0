@@ -173,6 +173,7 @@ class StorageCredentialsStore @Inject constructor(
                     boxClientSecret = dto?.boxClientSecret.decryptOrEmpty(),
                     // Not encrypted — it is a plain public URL.
                     appDownloadUrl = dto?.appDownloadUrl.orEmpty(),
+                    tokenAuthEnabled = dto?.tokenAuthEnabled == true,
                 )
                 _credentials.value = _credentials.value.copy(
                     accessKey = _configuration.value.awsAccessKey,

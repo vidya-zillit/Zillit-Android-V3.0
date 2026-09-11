@@ -2,6 +2,7 @@ package com.zillit.zillitapp.core.database
 
 import com.zillit.zillitapp.core.database.entity.ApiLogEntity
 import com.zillit.zillitapp.core.database.entity.CalendarSyncJobEntity
+import com.zillit.zillitapp.core.database.entity.PendingLogEntity
 import com.zillit.zillitapp.core.database.entity.ChatMessageEntity
 import com.zillit.zillitapp.core.database.entity.PendingUploadEntity
 import com.zillit.zillitapp.core.database.entity.ChatReplyEntity
@@ -88,7 +89,7 @@ class RealmProvider @Inject constructor() {
          * 14: NativeCalendarMappingEntity + CalendarSyncJobEntity added — device-calendar
          *     mirroring. New classes, so purely additive.
          */
-        const val SCHEMA_VERSION = 16L
+        const val SCHEMA_VERSION = 17L
 
         /** Every persisted entity must be listed here or queries on it throw. */
         val SCHEMA: Set<KClass<out TypedRealmObject>> = setOf(
@@ -105,6 +106,7 @@ class RealmProvider @Inject constructor() {
             PendingUploadEntity::class,
             NativeCalendarMappingEntity::class,
             CalendarSyncJobEntity::class,
+            PendingLogEntity::class,
         )
     }
 }

@@ -47,3 +47,6 @@ Thumbs.db
 
 # Android Studio's per-developer Gradle JDK path (machine-specific)
 gradle/config.properties
+
+# Kotlin compiler session files
+.kotlin/
