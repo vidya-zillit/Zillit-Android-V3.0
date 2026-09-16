@@ -157,6 +157,25 @@ sealed interface ChatMessage {
      */
     val isTranslated: Boolean get() = false
 
+    /**
+     * Emoji reactions on this message, already tallied.
+     *
+     * Counted rather than listed: the row under a bubble shows "👍 3", and every client
+     * that has ever rendered the raw list has ended up re-tallying it at draw time. One
+     * entry per distinct emoji, so the row is the row.
+     */
+    val reactions: List<ChatReaction> get() = emptyList()
+
+    /**
+     * The message this one answers, when it answers one.
+     *
+     * A socket chat models a reply as an ordinary message carrying a quotation, not as a
+     * child of what it answers — which is why [ChatFeedItem.Post.replies] stays empty there.
+     * A unit chat is the other way round: a reply really is a comment hanging off a post.
+     * Both shapes are real and this is the first one.
+     */
+    val quoted: QuotedMessage? get() = null
+
     data class Text(
         override val id: String,
         override val author: ChatAuthor,
@@ -166,9 +185,19 @@ sealed interface ChatMessage {
         override val isEdited: Boolean = false,
         override val createdAt: Long = 0L,
         override val isTranslated: Boolean = false,
+        override val reactions: List<ChatReaction> = emptyList(),
+        override val quoted: QuotedMessage? = null,
         val body: String,
         /** Substrings rendered in the brand colour — project codes, links. */
         val highlights: List<String> = emptyList(),
+        /**
+         * People named in this message.
+         *
+         * The body on the wire carries `@<userId>`, not `@<name>`: an id survives a rename
+         * and is the same on every client, where a name is neither. The substitution back to
+         * a readable name happens at render, from these pairs.
+         */
+        val mentions: List<ChatMention> = emptyList(),
     ) : ChatMessage
 
     data class Image(
@@ -180,6 +209,8 @@ sealed interface ChatMessage {
         override val isEdited: Boolean = false,
         override val createdAt: Long = 0L,
         override val isTranslated: Boolean = false,
+        override val reactions: List<ChatReaction> = emptyList(),
+        override val quoted: QuotedMessage? = null,
         /** Object key of the full file, for download-on-tap. */
         val remoteKey: String? = null,
         /** Local copy while still uploading — rendered before any network call. */
@@ -198,6 +229,8 @@ sealed interface ChatMessage {
         override val isEdited: Boolean = false,
         override val createdAt: Long = 0L,
         override val isTranslated: Boolean = false,
+        override val reactions: List<ChatReaction> = emptyList(),
+        override val quoted: QuotedMessage? = null,
         /** Object key of the full file, for download-on-tap. */
         val remoteKey: String? = null,
         /** Local copy while still uploading — rendered before any network call. */
@@ -216,6 +249,8 @@ sealed interface ChatMessage {
         override val isEdited: Boolean = false,
         override val createdAt: Long = 0L,
         override val isTranslated: Boolean = false,
+        override val reactions: List<ChatReaction> = emptyList(),
+        override val quoted: QuotedMessage? = null,
         /** Object key of the audio file, downloaded before playback. */
         val remoteKey: String? = null,
         /** Local copy — a note recorded here that has not uploaded yet. */
@@ -238,6 +273,8 @@ sealed interface ChatMessage {
         override val isEdited: Boolean = false,
         override val createdAt: Long = 0L,
         override val isTranslated: Boolean = false,
+        override val reactions: List<ChatReaction> = emptyList(),
+        override val quoted: QuotedMessage? = null,
         val fileName: String,
         /** Human-readable, e.g. "1.2 MB". */
         val fileSize: String,
@@ -263,12 +300,73 @@ sealed interface ChatMessage {
         override val isEdited: Boolean = false,
         override val createdAt: Long = 0L,
         override val isTranslated: Boolean = false,
+        override val reactions: List<ChatReaction> = emptyList(),
+        override val quoted: QuotedMessage? = null,
         val placeName: String,
         val address: String,
         /** Kept so the bubble can hand the pin to a maps app; 0.0 when unknown. */
         val latitude: Double = 0.0,
         val longitude: Double = 0.0,
+        /**
+         * The map snapshot. A location **is** an attachment on the wire — the sender's
+         * client renders the map once and uploads the picture, and every other client shows
+         * that picture rather than drawing its own. Same three keys as [Image], for the same
+         * loader: local copy while uploading, thumbnail first, full file when it lands.
+         */
+        val remoteKey: String? = null,
+        val thumbnail: String? = null,
+        val localPath: String? = null,
     ) : ChatMessage {
         val hasCoordinates: Boolean get() = latitude != 0.0 || longitude != 0.0
     }
 }
+
+/**
+ * One emoji on one message, with how many people chose it.
+ *
+ * [isMine] drives the highlight and the toggle: tapping a reaction you already gave takes
+ * it back, which is what every chat app does and what the server's empty-string reaction
+ * means. Without the flag the same tap would add a second identical reaction from you.
+ */
+data class ChatReaction(
+    val emoji: String,
+    val count: Int,
+    val isMine: Boolean,
+)
+
+/**
+ * The six offered on long-press, in v2's order.
+ *
+ * Fixed rather than "recently used": a production crew reacting to a call sheet wants the
+ * same six in the same places every time, and a row that reorders itself costs a glance.
+ * The full keyboard sits behind the last entry for anything else.
+ */
+val QUICK_REACTIONS = listOf("\uD83D\uDC4D", "\u2764\uFE0F", "\uD83D\uDE02", "\uD83D\uDE2F", "\uD83D\uDE22", "\uD83D\uDE4F")
+
+/**
+ * One person named in a message.
+ *
+ * [name] is carried with the id rather than looked up, because the person may have left the
+ * project since: v2 falls back to the name it was sent with for exactly that case, so the
+ * message still reads correctly instead of showing a raw id.
+ */
+data class ChatMention(
+    val userId: String,
+    val name: String,
+)
+
+/**
+ * What a reply is answering, as much of it as the bubble shows.
+ *
+ * Carried on the reply rather than looked up: the message being quoted may be older than
+ * anything loaded, or deleted since, and a quotation that disappears because the original
+ * scrolled out of the window is worse than one that stays.
+ */
+data class QuotedMessage(
+    /** Server id of the message being quoted; what a tap on the quotation goes to. */
+    val messageId: String,
+    val authorName: String,
+    /** The text, or a description of the file when there is no text. */
+    val preview: String,
+    val isOwn: Boolean = false,
+)

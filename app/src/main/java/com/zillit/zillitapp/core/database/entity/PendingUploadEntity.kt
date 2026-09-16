@@ -112,7 +112,40 @@ class PendingUploadEntity : RealmObject {
     var thumbnailRemoteKey: String = ""
     var thumbnailUploaded: Boolean = false
 
+    /**
+     * How the message is delivered once its bytes are up.
+     *
+     * A unit chat POSTs; a socket chat emits and waits for the acknowledgement. The upload
+     * half is identical either way, which is the whole reason both use this one queue rather
+     * than a second one that would need its own retry, ordering and process-death handling.
+     *
+     * [DELIVERY_UNIT] or [DELIVERY_SOCKET].
+     */
+    var deliveryKind: String = DELIVERY_UNIT
+
+    /** Socket delivery only: whether [scopeId] names a room rather than a person. */
+    var isGroup: Boolean = false
+
+    /** Socket delivery only: the recipient's device, which the server routes on. */
+    var receiverDeviceId: String = ""
+
+    /**
+     * The pin, when this upload is a location.
+     *
+     * A location message travels as an image **plus** coordinates: the snapshot is the
+     * attachment and these ride alongside it. Zero when the row is an ordinary file.
+     */
+    var locationLat: Double = 0.0
+    var locationLng: Double = 0.0
+    var locationAddress: String = ""
+
     companion object {
+        /** Posted to the chat endpoint — Home and every tool chat. */
+        const val DELIVERY_UNIT = "unit"
+
+        /** Emitted on the socket and confirmed by its ack — C&C and Budget. */
+        const val DELIVERY_SOCKET = "socket"
+
         const val STATUS_FAILED = -1
         const val STATUS_QUEUED = 0
         const val STATUS_UPLOADING = 1

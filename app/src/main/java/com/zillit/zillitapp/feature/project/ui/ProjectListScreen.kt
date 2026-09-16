@@ -71,6 +71,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.ui.components.EmptyState
 import com.zillit.zillitapp.core.ui.components.ErrorState
@@ -386,9 +387,10 @@ private fun ProjectCard(
 
     // Resolved here, in the composable, because these are server label keys and the
     // dictionary lives in the composition — see LabelResolution.kt.
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
     val typeLine = remember(project.typeLabelKeys, labels) {
-        project.typeLabelKeys.joinToString(TYPE_SEPARATOR) { labels.resolveLabel(it) }
+        project.typeLabelKeys.joinToString(TYPE_SEPARATOR) { labels.resolve(it) }
     }
 
     val favouriteDescription = stringResource(

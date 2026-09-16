@@ -107,8 +107,10 @@ class SessionApi @Inject constructor(
         if (!response.status.isSuccess()) {
             val message = messageOf(text)
             return@runCatching when {
-                response.status.value == 503 || message == TokenErrors.AUTH_DISABLED ->
-                    SessionResult.Disabled
+                // The kill-switch needs the server's explicit verdict. A bare 503 is a load
+                // balancer having a moment — dev throws them routinely — and reading it as
+                // "feature off" silently parked the whole session on moduledata.
+                message == TokenErrors.AUTH_DISABLED -> SessionResult.Disabled
 
                 message == TokenErrors.REFRESH_INVALID || message == TokenErrors.REFRESH_REUSE ->
                     SessionResult.Fatal(message)

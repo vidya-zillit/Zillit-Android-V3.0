@@ -69,6 +69,24 @@ class ZillitCrypto @Inject constructor() {
      * Tries PKCS#5 first, then falls back to no-padding + manual PKCS#7 strip, which is
      * what makes iOS-produced payloads decode.
      */
+    /**
+     * Decrypt a nullable field, giving back "" for absent text.
+     *
+     * Chat payloads leave an unused body out entirely rather than sending an empty string,
+     * and every call site was writing the same `?.let { decrypt(it) }.orEmpty()` dance.
+     */
+    fun decryptOrBlank(cipherTextHex: String?): String =
+        cipherTextHex?.takeIf { it.isNotEmpty() }?.let { decrypt(it) }.orEmpty()
+
+    /**
+     * Encrypt a nullable field, giving back "" for absent text.
+     *
+     * Symmetric with [decryptOrBlank] so a send path cannot accidentally put the literal
+     * string "null" on the wire.
+     */
+    fun encryptOrBlank(plaintext: String?): String =
+        plaintext?.takeIf { it.isNotEmpty() }?.let { encrypt(it) }.orEmpty()
+
     fun decrypt(cipherTextHex: String): String {
         val bytes = cipherTextHex.hexToBytesOrNull() ?: return cipherTextHex
         val keySpec = SecretKeySpec(keyMaterial.toByteArray(Charsets.UTF_8), ALGORITHM)

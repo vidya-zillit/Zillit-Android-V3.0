@@ -3,6 +3,7 @@ package com.zillit.zillitapp.feature.createproject.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.zillit.zillitapp.core.bootstrap.MailboxProvisioner
 import com.zillit.zillitapp.core.network.ApiError
 import com.zillit.zillitapp.core.network.ApiResult
 import com.zillit.zillitapp.feature.createproject.data.CreateProjectRepository
@@ -152,6 +153,7 @@ data class CreateProjectUiState(
 @HiltViewModel
 class CreateProjectViewModel @Inject constructor(
     private val repository: CreateProjectRepository,
+    private val mailboxProvisioner: MailboxProvisioner,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -398,6 +400,15 @@ class CreateProjectViewModel @Inject constructor(
 
             when (val created = repository.createProject(request)) {
                 is ApiResult.Success -> {
+                    // The membership exists but the mailbox does not — the backend only
+                    // provisions it when asked, which v2 does right here. Not awaited: the
+                    // share-code screen must not wait on it, and the bootstrap re-checks
+                    // the profile when the project is opened.
+                    val projectId = created.data.projectId.orEmpty()
+                    val userId = created.data.userId.orEmpty()
+                    if (projectId.isNotBlank() && userId.isNotBlank()) {
+                        viewModelScope.launch { mailboxProvisioner.ensure(projectId, userId) }
+                    }
                     clearForm()
                     _uiState.update {
                         it.copy(

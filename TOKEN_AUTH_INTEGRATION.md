@@ -2,6 +2,32 @@
 
 Both mails implemented end to end, live-verified against dev (flag on, 15-min TTL).
 
+## Sep 2026 change — the mode is decided by `POST /session/device`, not a flag
+
+`token_auth_enabled` was **dropped from `GET /configuration`** (it is project-scoped; the token
+flow starts at device level, before any project is chosen). v3 kept waiting for it and so
+stayed on moduledata for every call — and routes that have since tightened (mail, for one)
+refused those calls with errors that read like data problems. v2 already follows the new
+rule; v3 now matches it (`TokenSession`, 15 Sep 2026):
+
+- Token mode is **on by default**. `POST /session/device` at app start is the probe.
+- `401 libs_invalid_device_id` → no device record yet (fresh install, before create/join).
+  Stay on moduledata; re-probe when a project opens, since create/join registers the device.
+- `session_token_auth_disabled` → kill-switch, moduledata for the session. **Only** that
+  explicit verdict — a bare 503 is a load balancer hiccup, and treating it as the kill-switch
+  parked whole sessions on moduledata.
+- A token-eligible call **suspends** until the session exists (`bearerTokenFor`) and falls
+  back to moduledata only after acquisition genuinely failed. An eager fallback is what
+  `libs_moduledata_not_accepted` looks like.
+- Project variants with **no project open** ride the device token, not moduledata.
+- `WITH_PROJECT_USER_BUCKET_DATA` rides the bearer: in v3 it fronts ordinary CRUD routes
+  (the S3 transfer itself goes through the SDK). Scanner, Box and pre-registration variants
+  stay legacy — they feed the only routes that read non-identity header fields.
+- A dead refresh token re-establishes via moduledata rather than logging anyone out.
+
+Live-verified on the fold emulator: `device → 200`, `project → 200 scope=member`, every call
+on a bearer with no moduledata block.
+
 ## The pieces
 
 | File | Role |

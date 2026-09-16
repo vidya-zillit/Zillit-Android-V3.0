@@ -2,10 +2,22 @@ package com.zillit.zillitapp.core.database
 
 import com.zillit.zillitapp.core.database.entity.ApiLogEntity
 import com.zillit.zillitapp.core.database.entity.CalendarSyncJobEntity
+import com.zillit.zillitapp.core.database.entity.CncAttachmentEntity
+import com.zillit.zillitapp.core.database.entity.CncConversationEntity
+import com.zillit.zillitapp.core.database.entity.CncMemberEntity
+import com.zillit.zillitapp.core.database.entity.CncMessageElementEntity
+import com.zillit.zillitapp.core.database.entity.CncMessageEntity
+import com.zillit.zillitapp.core.database.entity.CncReactionEntity
+import com.zillit.zillitapp.core.database.entity.CncReplyEntity
+import com.zillit.zillitapp.core.database.entity.PendingEmailEntity
+import com.zillit.zillitapp.core.database.entity.PendingReceiptEntity
 import com.zillit.zillitapp.core.database.entity.PendingLogEntity
 import com.zillit.zillitapp.core.database.entity.ChatMessageEntity
 import com.zillit.zillitapp.core.database.entity.PendingUploadEntity
 import com.zillit.zillitapp.core.database.entity.ChatReplyEntity
+import com.zillit.zillitapp.core.database.entity.EmailAttachmentEntity
+import com.zillit.zillitapp.core.database.entity.EmailEntity
+import com.zillit.zillitapp.core.database.entity.EmailFolderEntity
 import com.zillit.zillitapp.core.database.entity.NativeCalendarMappingEntity
 import com.zillit.zillitapp.core.database.entity.ProjectDepartmentEntity
 import com.zillit.zillitapp.core.database.entity.ProjectToolEntity
@@ -88,8 +100,59 @@ class RealmProvider @Inject constructor() {
          * 13: NotificationEntity.eventEndAt added; existing rows default to 0.
          * 14: NativeCalendarMappingEntity + CalendarSyncJobEntity added — device-calendar
          *     mirroring. New classes, so purely additive.
+         * 18: Email/EmailAttachment/EmailFolder entities added — the mail cache. New
+         *     classes, so purely additive.
+         * 19: ProjectEntity.accountsMailboxEmail added; existing rows default to null,
+         *     which reads correctly as "this project has no shared mailbox".
+         * 20: ProjectEntity.accountsBccPresets added; empty on existing rows, which reads
+         *     correctly as "no presets".
+         * 21: ProjectEntity gained the shared mailbox's SMTP/IMAP settings. Empty and zero
+         *     on existing rows; the next project refresh fills them.
+         * 22: PendingEmailEntity added — the outbox. A new class, so purely additive.
+         * 23: ProjectToolEntity gained groupIdentifier and the tool/home/sub-unit flags,
+         *     which the tools endpoint already sent. Blank and false on existing rows; the
+         *     next project refresh fills them.
+         * 24: ProjectToolEntity gained the three `*_updatable` rights, also already sent.
+         * 25: C&C storage added — CncMessageEntity and CncConversationEntity with their
+         *     embedded children. New classes, so purely additive. Deliberately separate
+         *     from ChatMessageEntity: see the note on CncMessageEntity for why a socket
+         *     chat cannot share a table with a unit chat.
+         * 26: ProjectUserEntity.deviceId added — the device the person is signed in on,
+         *     which presence is keyed by. Blank on existing rows; the next project refresh
+         *     fills it. Its own version because 25 had already shipped to devices: adding a
+         *     property under a version that is already on disk is exactly what
+         *     RLM_ERR_SCHEMA_MISMATCH is, and it kills the app at launch.
+         * 27: PendingUploadEntity gained deliveryKind, isGroup and receiverDeviceId, so the
+         *     one upload queue can finish a socket-chat send as well as a unit-chat POST.
+         *     Existing rows default to the unit kind, which is what they were.
+         * 28: ProjectUserEntity.sortingActivity added — the Chat tab's order key, already
+         *     sent by the users endpoint and never read. Zero on existing rows; the next
+         *     project refresh fills it.
+         * 29: PendingReceiptEntity added — read and delivered receipts that could not be
+         *     emitted, so a receipt lost to a dead socket is re-sent rather than leaving the
+         *     sender's message on one tick forever. A new class, so purely additive.
+         * 30: PendingUploadEntity gained the location columns, so a shared pin can go
+         *     through the same queue as any other attachment — which is what it is, plus
+         *     coordinates. Zero on existing rows, which reads correctly as "not a location".
+         * - **31**: `CncMessageEntity.readByCount`. A group's "Read by N" comes off the
+         *   message itself; there is no endpoint that answers it per room. Zero on existing
+         *   rows, which reads correctly as "nobody yet" until the next fetch fills it in.
+         * - **32**: `ProjectEntity.projectTypeId` and `.membershipStatus`, and
+         *   `CncConversationEntity.departmentId` and `.isRandomCallGroup`. Together these
+         *   are what the C&C filter chips are decided from: which chips exist at all, and
+         *   which rooms belong under Groups rather than Departments. Blank and false on
+         *   existing rows, which reads as "an ordinary group in an ordinary project" until
+         *   the next refresh — the same as before the columns existed.
+         * - **33**: `ProjectUserEntity.showsLocation`, `.lastLatitude`, `.lastLongitude`.
+         *   A profile offers to show where somebody is only when they share it, which is a
+         *   consent signal and not something to infer from whether a position happens to be
+         *   stored. False and zero on existing rows, so the action stays hidden until the
+         *   next directory refresh says otherwise.
+         * - **34**: `EmailEntity.draftUniqueId` — the `unique_id` a draft was created with,
+         *   so a draft can be stored and found before it has a server id. Empty on every
+         *   existing row, which is correct: they are all server drafts or ordinary mail.
          */
-        const val SCHEMA_VERSION = 17L
+        const val SCHEMA_VERSION = 34L
 
         /** Every persisted entity must be listed here or queries on it throw. */
         val SCHEMA: Set<KClass<out TypedRealmObject>> = setOf(
@@ -107,6 +170,18 @@ class RealmProvider @Inject constructor() {
             NativeCalendarMappingEntity::class,
             CalendarSyncJobEntity::class,
             PendingLogEntity::class,
+            EmailEntity::class,
+            EmailAttachmentEntity::class,
+            EmailFolderEntity::class,
+            PendingEmailEntity::class,
+            PendingReceiptEntity::class,
+            CncMessageEntity::class,
+            CncAttachmentEntity::class,
+            CncReplyEntity::class,
+            CncReactionEntity::class,
+            CncMessageElementEntity::class,
+            CncConversationEntity::class,
+            CncMemberEntity::class,
         )
     }
 }

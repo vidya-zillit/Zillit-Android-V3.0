@@ -80,14 +80,27 @@ android {
             versionNameSuffix = "-v3dev"
             urlField("BASE_URL", "STG_BASE_URL")
             urlField("CHAT_BASE_URL", "STG_CHAT_BASE_URL")
+            // Call logs. Calling itself is not built yet; the Calls tab reads this.
+            urlField("CALLING_BASE_URL", "STG_CALLING_BASE_URL")
             urlField("NOTIFICATION_BASE_URL", "STG_NOTIFICATION_BASE_URL")
             // Home units live on their own service, not the main API host.
             urlField("UNITS_BASE_URL", "STG_UNITS_BASE_URL")
-            // Translation proxies OpenAI behind Zillit's own signed endpoint.
-            urlField("INTEGRATIONS_BASE_URL", "STG_INTEGRATIONS_BASE_URL")
+            // Translation proxies OpenAI behind Zillit's own signed endpoint. It lives on
+            // MRMI (map + recce + media + integrations), one of the four consolidated
+            // services the backend merged the per-module hosts into; the old
+            // integrationsapi host is retired in every environment.
+            urlField("INTEGRATIONS_BASE_URL", "STG_MRMI_BASE_URL")
             urlField("DOC_DISTRIBUTION_BASE_URL", "STG_DOC_DISTRIBUTION_BASE_URL")
             urlField("CALENDAR_BASE_URL", "STG_CALENDAR_BASE_URL")
-            urlField("LOCATION_BASE_URL", "STG_LOCATION_BASE_URL")
+            // Mail has its own service too, and it is NOT routed through the
+            // consolidated-hosts switch — v2 addresses it as a static host.
+            urlField("EMAIL_BASE_URL", "STG_EMAIL_BASE_URL")
+            // Drive is its own service too. Email needs it for one thing only:
+            // the folder a "save attachments to Drive" rule files into.
+            urlField("DRIVE_BASE_URL", "STG_DRIVE_BASE_URL")
+            // The error-log sink is on LCW (location + casting + wardrobe), the
+            // consolidated host; the old locationapi host answers 502 everywhere.
+            urlField("LOCATION_BASE_URL", "STG_LCW_BASE_URL")
             urlField("ENCRYPTION_KEY", "STG_ENCRYPTION_KEY")
             urlField("IV_KEY", "STG_IV_ENCRYPTION_KEY")
         }
@@ -97,14 +110,26 @@ android {
             versionNameSuffix = "-v3qa"
             urlField("BASE_URL", "QA_BASE_URL")
             urlField("CHAT_BASE_URL", "QA_CHAT_BASE_URL")
+            // Call logs. Calling itself is not built yet; the Calls tab reads this.
+            urlField("CALLING_BASE_URL", "QA_CALLING_BASE_URL")
             urlField("NOTIFICATION_BASE_URL", "QA_NOTIFICATION_BASE_URL")
             // Home units live on their own service, not the main API host.
             urlField("UNITS_BASE_URL", "QA_UNITS_BASE_URL")
-            // Translation proxies OpenAI behind Zillit's own signed endpoint.
-            urlField("INTEGRATIONS_BASE_URL", "QA_INTEGRATIONS_BASE_URL")
+            // Translation proxies OpenAI behind Zillit's own signed endpoint. It lives on
+            // MRMI (map + recce + media + integrations), one of the four consolidated
+            // services the backend merged the per-module hosts into; the old
+            // integrationsapi host is retired in every environment.
+            urlField("INTEGRATIONS_BASE_URL", "QA_MRMI_BASE_URL")
             urlField("DOC_DISTRIBUTION_BASE_URL", "QA_DOC_DISTRIBUTION_BASE_URL")
             urlField("CALENDAR_BASE_URL", "QA_CALENDAR_BASE_URL")
-            urlField("LOCATION_BASE_URL", "QA_LOCATION_BASE_URL")
+            // Mail has its own service too, and it is NOT routed through the
+            // consolidated-hosts switch — v2 addresses it as a static host.
+            urlField("EMAIL_BASE_URL", "QA_EMAIL_BASE_URL")
+            // Drive is its own service too. Email needs it for one thing only:
+            // the folder a "save attachments to Drive" rule files into.
+            urlField("DRIVE_BASE_URL", "QA_DRIVE_BASE_URL")
+            // On LCW, the consolidated host — see the develop block.
+            urlField("LOCATION_BASE_URL", "QA_LCW_BASE_URL")
             urlField("ENCRYPTION_KEY", "QA_ENCRYPTION_KEY")
             urlField("IV_KEY", "QA_IV_ENCRYPTION_KEY")
         }
@@ -112,14 +137,26 @@ android {
             dimension = "version"
             urlField("BASE_URL", "PROD_BASE_URL")
             urlField("CHAT_BASE_URL", "PROD_CHAT_BASE_URL")
+            // Call logs. Calling itself is not built yet; the Calls tab reads this.
+            urlField("CALLING_BASE_URL", "PROD_CALLING_BASE_URL")
             urlField("NOTIFICATION_BASE_URL", "PROD_NOTIFICATION_BASE_URL")
             // Home units live on their own service, not the main API host.
             urlField("UNITS_BASE_URL", "PROD_UNITS_BASE_URL")
-            // Translation proxies OpenAI behind Zillit's own signed endpoint.
-            urlField("INTEGRATIONS_BASE_URL", "PROD_INTEGRATIONS_BASE_URL")
+            // Translation proxies OpenAI behind Zillit's own signed endpoint. It lives on
+            // MRMI (map + recce + media + integrations), one of the four consolidated
+            // services the backend merged the per-module hosts into; the old
+            // integrationsapi host is retired in every environment.
+            urlField("INTEGRATIONS_BASE_URL", "PROD_MRMI_BASE_URL")
             urlField("DOC_DISTRIBUTION_BASE_URL", "PROD_DOC_DISTRIBUTION_BASE_URL")
             urlField("CALENDAR_BASE_URL", "PROD_CALENDAR_BASE_URL")
-            urlField("LOCATION_BASE_URL", "PROD_LOCATION_BASE_URL")
+            // Mail has its own service too, and it is NOT routed through the
+            // consolidated-hosts switch — v2 addresses it as a static host.
+            urlField("EMAIL_BASE_URL", "PROD_EMAIL_BASE_URL")
+            // Drive is its own service too. Email needs it for one thing only:
+            // the folder a "save attachments to Drive" rule files into.
+            urlField("DRIVE_BASE_URL", "PROD_DRIVE_BASE_URL")
+            // On LCW, the consolidated host — see the develop block.
+            urlField("LOCATION_BASE_URL", "PROD_LCW_BASE_URL")
             urlField("ENCRYPTION_KEY", "PROD_ENCRYPTION_KEY")
             urlField("IV_KEY", "PROD_IV_ENCRYPTION_KEY")
         }
@@ -223,5 +260,8 @@ dependencies {
     // when the server label dictionaries are stale — see LabelRepository.
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.config)
+    // Presence only. The backend mirrors mark_online/mark_offline into Realtime
+    // Database, and every platform reads who is online from there — see PresenceRepository.
+    implementation(libs.firebase.database)
     implementation(libs.firebase.messaging)
 }

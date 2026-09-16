@@ -58,11 +58,7 @@ class NotificationTextBuilder @Inject constructor(
      * why the tray showed "Home New Unit Chat" instead of the real sentence. Labels are
      * still tried first, since some keys legitimately live there.
      */
-    private fun resolve(key: String): String = ServerText(key).resolveWith(
-        labels = labelRepository.labels.value,
-        messages = labelRepository.messages.value,
-        identifiers = labelRepository.identifiers.value,
-    )
+    private fun resolve(key: String): String = labelRepository.dictionaries.value.resolve(key)
 
     /** The push payload's own element type maps onto the shared one. */
     private fun List<TextElement>.toMessageElements(): List<MessageElement> =

@@ -4,6 +4,7 @@ import android.content.Context
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.mobileconnectors.s3.transferutility.TransferListener
 import com.amazonaws.mobileconnectors.s3.transferutility.TransferObserver
+import com.amazonaws.mobileconnectors.s3.transferutility.TransferNetworkLossHandler
 import com.amazonaws.mobileconnectors.s3.transferutility.TransferState as AwsTransferState
 import com.amazonaws.mobileconnectors.s3.transferutility.TransferUtility
 import com.amazonaws.regions.Region
@@ -29,16 +30,36 @@ import javax.inject.Singleton
  * The AWS client is rebuilt whenever the credentials change. v2 caches it in object fields
  * and only reinitialises when a field happens to be empty, so switching to a project in a
  * different region keeps uploading to the previous region's bucket until the app restarts.
+ *
+ * ### One region is not enough to read with
+ * Uploads always go to the project's own region. Downloads do not: a file uploaded while
+ * the project sat in another region keeps living there, and so does the avatar of anyone
+ * who joined from a different one. The server says so on every media object it returns,
+ * naming the `bucket` and `region` that file is actually in, and v2 reads those in
+ * preference to the project default. Asking the project's bucket for a key that lives
+ * elsewhere returns `NoSuchKey`, which looks exactly like a deleted file and is why one
+ * user's photo was missing while everyone else's loaded. So a download names its own
+ * bucket and region when it knows them, and a client per region is kept for the purpose.
  */
 @Singleton
 class S3Client @Inject constructor(
     @ApplicationContext private val context: Context,
     private val credentialsStore: StorageCredentialsStore,
+    private val mediaLocations: MediaLocations,
 ) {
 
     private var cachedFor: StorageCredentials? = null
     private var s3: AmazonS3Client? = null
     private var transferUtility: TransferUtility? = null
+
+    /**
+     * A client per foreign region, built on demand and kept.
+     *
+     * Small and bounded — a project's files are spread over a handful of regions at most —
+     * and rebuilding one per download would mean an AWS client construction on every
+     * avatar in a list.
+     */
+    private val byRegion = mutableMapOf<String, TransferUtility>()
 
     private val lock = Any()
 
@@ -65,6 +86,11 @@ class S3Client @Inject constructor(
         }
 
         synchronized(lock) {
+            // Required before any transfer, and it is the SDK's own instruction: without
+            // it every transfer logs an error and none of them resume when the connection
+            // comes back. Idempotent, so calling it on each pass costs nothing.
+            runCatching { TransferNetworkLossHandler.getInstance(context) }
+
             if (cachedFor != creds || transferUtility == null) {
                 // Region or keys changed: rebuild rather than reuse. See the class doc.
                 s3 = AmazonS3Client(
@@ -76,9 +102,41 @@ class S3Client @Inject constructor(
                     .s3Client(s3)
                     .build()
                 cachedFor = creds
+                // A credentials change invalidates the per-region clients too: they were
+                // built with the previous keys.
+                byRegion.clear()
                 ZillitLog.d(TAG, "S3 client built for region=${creds.region}")
             }
             return transferUtility!! to creds
+        }
+    }
+
+    /**
+     * The transfer client for [region], which may not be the project's.
+     *
+     * Falls back to the project's own client when the region is blank, unknown to the SDK,
+     * or already the project's — the common case, and the one that must stay allocation-free.
+     */
+    private fun utilityFor(
+        region: String?,
+        creds: StorageCredentials,
+        default: TransferUtility,
+    ): TransferUtility {
+        val wanted = region?.trim().orEmpty()
+        if (wanted.isEmpty() || wanted.equals(creds.region, ignoreCase = true)) return default
+
+        return synchronized(lock) {
+            byRegion.getOrPut(wanted) {
+                val client = runCatching {
+                    AmazonS3Client(
+                        BasicAWSCredentials(creds.accessKey, creds.secretKey),
+                        Region.getRegion(wanted),
+                    )
+                }.getOrNull() ?: return@synchronized default
+
+                ZillitLog.d(TAG, "S3 client built for foreign region=$wanted")
+                TransferUtility.builder().context(context).s3Client(client).build()
+            }
         }
     }
 
@@ -178,8 +236,17 @@ class S3Client @Inject constructor(
 
         trySend(TransferState.Queued)
 
-        val observer = utility.download(
-            creds.effectiveDownloadBucket,
+        // The file's own home wins over the project's: what the caller passed if it knew,
+        // otherwise whatever was recorded for this key when the server named it, otherwise
+        // the project default. See [MediaLocations].
+        val known = mediaLocations.locationFor(request.remoteKey)
+        val bucket = request.bucket?.takeIf { it.isNotBlank() }
+            ?: known?.bucket
+            ?: creds.effectiveDownloadBucket
+        val region = request.region?.takeIf { it.isNotBlank() } ?: known?.region
+
+        val observer = utilityFor(region, creds, utility).download(
+            bucket,
             request.remoteKey,
             destination,
         )

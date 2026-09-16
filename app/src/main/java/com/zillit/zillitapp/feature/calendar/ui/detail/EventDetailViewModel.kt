@@ -310,7 +310,7 @@ class EventDetailViewModel @Inject constructor(
      */
     private fun creatorLabel(creatorId: String?): String {
         val user = creatorId?.takeIf { it.isNotBlank() }?.let(directory::findUser) ?: return ""
-        val designation = user.designationName?.takeIf { it.isNotBlank() }?.let { labelRepository.labels.value.resolveLabel(it) }
+        val designation = user.designationName?.takeIf { it.isNotBlank() }?.let { labelRepository.dictionaries.value.resolve(it) }
         return if (designation.isNullOrBlank()) user.displayName else "${user.displayName} ($designation)"
     }
 

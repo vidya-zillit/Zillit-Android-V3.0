@@ -68,13 +68,11 @@ class SplashViewModel @Inject constructor(
             // Realm, so every screen reading a person picks them up without asking.
             directoryRealtime.start()
 
-            // Bearer-token session. The flag follows `token_auth_enabled` from every
-            // configuration fetch; the bootstrap resumes a stored session so a relaunch
-            // never asks anyone to log in (and quietly does nothing while the flag is off).
-            tokenSession.followConfiguration(
-                storageCredentials.configuration.map { it.tokenAuthEnabled },
-            )
-            tokenSession.bootstrap()
+            // Bearer-token session. The probe — `POST /session/device` — is what decides
+            // the mode now; the old `token_auth_enabled` flag no longer exists server-side.
+            // Not awaited: requests establish the session on demand, and this only keeps
+            // the first burst from each paying for it.
+            tokenSession.probe()
 
             // Hands the FCM token to the backend. Without this the server has no address
             // to push to, so no notification arrives and realtime badges never fire —

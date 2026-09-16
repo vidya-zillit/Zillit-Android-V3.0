@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -68,6 +71,17 @@ import com.zillit.zillitapp.core.ui.chat.model.ChatFeedItem
 import com.zillit.zillitapp.core.ui.chat.model.ChatMessage
 import com.zillit.zillitapp.core.ui.chat.model.SendState
 import kotlin.math.roundToInt
+import com.zillit.zillitapp.core.ui.chat.model.ChatReaction
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
+import androidx.compose.material.icons.outlined.Close
+import com.zillit.zillitapp.core.ui.chat.model.QuotedMessage
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * One post: the root message, then every reply to it, inside a single card.
@@ -90,6 +104,17 @@ fun ChatPostRow(
     onLongPress: (ChatMessage) -> Unit = {},
     /** Tap on an attachment — opens the media viewer. */
     onOpenMedia: (ChatMessage) -> Unit = {},
+    /**
+     * Add or take back an emoji reaction. Null on surfaces that do not have them.
+     *
+     * Null rather than a no-op default so the chip row is absent from a unit chat rather
+     * than present and inert — a chip that does nothing on tap reads as a broken chip.
+     */
+    onReact: ((ChatMessage, String) -> Unit)? = null,
+    /** Tap on a quotation — goes to the message being answered. */
+    onOpenQuoted: ((String) -> Unit)? = null,
+    /** Abandon an upload still in flight. Null where the surface cannot cancel one. */
+    onCancelUpload: ((ChatMessage) -> Unit)? = null,
     audio: AudioBubbleState = AudioBubbleState(),
     /** Non-null while a Delete or Share selection is running. */
     selection: ChatSelectionState? = null,
@@ -103,9 +128,35 @@ fun ChatPostRow(
     searchQuery: String = "",
     /** True for the match currently stepped to, which gets a stronger tint. */
     isSearchHit: Boolean = false,
+    /**
+     * Two-sided layout: your own messages sit on the right in the accent tint, everyone
+     * else's on the left under their avatar and name.
+     *
+     * False for a unit chat, which is a board rather than a conversation — forty people
+     * post to the same unit there, so "who wrote it" matters and "was it me" does not.
+     * True for C&C, where a thread has exactly two sides.
+     */
+    twoSided: Boolean = false,
+    /**
+     * Ticks under your own messages.
+     *
+     * Only meaningful where a message has recipients whose reading of it is tracked, which
+     * is C&C. See the note in [MessageFooter].
+     */
+    showDeliveryReceipts: Boolean = false,
+    /**
+     * "Read by 11" beside the time on your own group messages. Null hides it.
+     *
+     * Passed in already worded, because the count is plural-sensitive copy and this file
+     * has no business deciding it.
+     */
+    readByLabel: String? = null,
 ) {
     val selecting = selection != null
     val isSelected = selection?.contains(post.root.id) == true
+
+    // Your own message takes the right-hand side only where the thread has two sides.
+    val ownSide = twoSided && post.root.isOwn
 
     Column(
         modifier = Modifier
@@ -130,101 +181,155 @@ fun ChatPostRow(
             )
             .padding(horizontal = ZillitTheme.spacing.md, vertical = ZillitTheme.spacing.xs),
         verticalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.xs),
+        horizontalAlignment = if (ownSide) Alignment.End else Alignment.Start,
     ) {
         // Avatar and name form their own centred row above the bubble rather than the
         // avatar hanging off the bubble's top-left. Optically aligning a circle with the
         // cap-height of a single line of text is what makes the header read as one unit.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.sm),
-        ) {
-            if (selecting) {
-                Icon(
-                    imageVector = if (isSelected) {
-                        Icons.Filled.CheckCircle
-                    } else {
-                        Icons.Outlined.RadioButtonUnchecked
-                    },
-                    contentDescription = null,
-                    tint = if (isSelected) {
-                        ZillitTheme.colors.brand
-                    } else {
-                        ZillitTheme.colors.textTertiary
-                    },
-                    modifier = Modifier.size(20.dp),
-                )
+        //
+        // Your own messages carry no header on a two-sided thread: the side it sits on
+        // already says who wrote it, and your own name on every line is noise. The tick
+        // still needs somewhere to live while selecting, so the row survives for that.
+        if (!ownSide || selecting) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.sm),
+            ) {
+                if (selecting) {
+                    Icon(
+                        imageVector = if (isSelected) {
+                            Icons.Filled.CheckCircle
+                        } else {
+                            Icons.Outlined.RadioButtonUnchecked
+                        },
+                        contentDescription = null,
+                        tint = if (isSelected) {
+                            ZillitTheme.colors.brand
+                        } else {
+                            ZillitTheme.colors.textTertiary
+                        },
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                if (!ownSide) {
+                    AuthorHeader(author = post.root.author, avatarSize = ROOT_AVATAR_SIZE)
+                }
             }
-            AuthorHeader(author = post.root.author, avatarSize = ROOT_AVATAR_SIZE)
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = ROOT_AVATAR_SIZE + ZillitTheme.spacing.sm)
-                .clip(RoundedCornerShape(ZillitTheme.shapes.large))
-                .background(ZillitTheme.colors.surface)
-                .border(
-                    1.dp,
-                    ZillitTheme.colors.border,
-                    RoundedCornerShape(ZillitTheme.shapes.large),
-                )
-                // The whole bubble is the long-press target — v2 anchors its popup to the
-                // row too, and hunting for a specific sub-view to press is not something
-                // anyone should have to learn.
-                .pointerInput(post.root.id, selecting) {
-                    detectTapGestures(
-                        // While selecting, both gestures mean the same thing: a long press
-                        // that opened a second options sheet on top of a running selection
-                        // would leave two conflicting actions in flight.
-                        onLongPress = {
-                            if (selecting) onToggleSelection(post.root) else onLongPress(post.root)
-                        },
-                        onTap = {
-                            when {
-                                selecting -> onToggleSelection(post.root)
-                                // Tapping only means something for media; a text bubble
-                                // has nothing to open.
-                                post.root.hasOpenableMedia -> onOpenMedia(post.root)
-                                // A pin opens in a maps app, which is the only thing you
-                                // can usefully do with someone else's location.
-                                post.root is ChatMessage.Location ->
-                                    onOpenLocation(post.root as ChatMessage.Location)
-                            }
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // A two-sided bubble stops short of the far edge, so the gutter left behind is
+            // what says which side the message is on even when the text wraps.
+            val placement = if (twoSided) {
+                Modifier
+                    .widthIn(max = maxWidth * TWO_SIDED_BUBBLE_FRACTION)
+                    .align(if (ownSide) Alignment.TopEnd else Alignment.TopStart)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = ROOT_AVATAR_SIZE + ZillitTheme.spacing.sm)
+            }
+
+            Column(
+                modifier = placement
+                    .clip(RoundedCornerShape(ZillitTheme.shapes.large))
+                    .background(
+                        if (ownSide) {
+                            ZillitTheme.colors.accentSoft
+                        } else {
+                            ZillitTheme.colors.surface
                         },
                     )
-                },
-        ) {
-            MessageBody(post.root, audio, searchQuery)
+                    .border(
+                        1.dp,
+                        if (ownSide) {
+                            ZillitTheme.colors.accent.copy(alpha = 0.25f)
+                        } else {
+                            ZillitTheme.colors.border
+                        },
+                        RoundedCornerShape(ZillitTheme.shapes.large),
+                    )
+                    // The whole bubble is the long-press target — v2 anchors its popup to
+                    // the row too, and hunting for a specific sub-view to press is not
+                    // something anyone should have to learn.
+                    .pointerInput(post.root.id, selecting) {
+                        detectTapGestures(
+                            // While selecting, both gestures mean the same thing: a long
+                            // press that opened a second options sheet on top of a running
+                            // selection would leave two conflicting actions in flight.
+                            onLongPress = {
+                                if (selecting) {
+                                    onToggleSelection(post.root)
+                                } else {
+                                    onLongPress(post.root)
+                                }
+                            },
+                            onTap = {
+                                when {
+                                    selecting -> onToggleSelection(post.root)
+                                    // Tapping only means something for media; a text
+                                    // bubble has nothing to open.
+                                    post.root.hasOpenableMedia -> onOpenMedia(post.root)
+                                    // A pin opens in a maps app, which is the only thing
+                                    // you can usefully do with someone else's location.
+                                    post.root is ChatMessage.Location ->
+                                        onOpenLocation(post.root as ChatMessage.Location)
+                                }
+                            },
+                        )
+                    },
+            ) {
+                // Above the body, as every chat renders a quotation: what is being answered
+                // has to be read before the answer for either to make sense.
+                post.root.quoted?.let { QuotedBlock(it, onClick = onOpenQuoted) }
 
-            // The rest of the batch, as a grid under the first file. Tapping one opens the
-            // viewer on that file, so a batch behaves like an album rather than a stack
-            // you have to expand first.
-            if (post.batch.isNotEmpty()) {
-                BatchGrid(
-                    items = post.batch,
-                    onOpen = { if (!selecting) onOpenMedia(it) },
+                MessageBody(post.root, audio, searchQuery)
+
+                // The rest of the batch, as a grid under the first file. Tapping one opens
+                // the viewer on that file, so a batch behaves like an album rather than a
+                // stack you have to expand first.
+                if (post.batch.isNotEmpty()) {
+                    BatchGrid(
+                        items = post.batch,
+                        onOpen = { if (!selecting) onOpenMedia(it) },
+                    )
+                }
+
+                // Above the footer, as in v2: reactions belong to the message, the
+                // timestamp and ticks belong to its delivery.
+                ReactionRow(
+                    reactions = post.root.reactions,
+                    onToggle = { emoji -> onReact?.invoke(post.root, emoji) },
                 )
-            }
 
-            MessageFooter(post.root, onRetry)
-
-            if (post.replies.isNotEmpty()) {
-                ReplySection(
-                    replies = post.replies,
+                MessageFooter(
+                    message = post.root,
                     onRetry = onRetry,
-                    audio = audio,
-                    // Suppressed while selecting: a selection acts on whole posts, and a
-                    // menu opening over it would offer actions on a different target.
-                    onReplyOptions = if (selecting) null else onReplyOptions,
-                    onOpenMedia = onOpenMedia,
+                    showDeliveryReceipts = showDeliveryReceipts,
+                    readByLabel = readByLabel,
+                    onCancelUpload = onCancelUpload,
                 )
-            }
 
-            // Reply is offered once the server has acknowledged the message and given
-            // it an id — a reply needs something to attach to. Never on a read-only
-            // surface: a replaced message is not a conversation you can continue.
-            if (!isReadOnly) {
-                post.rootServerId?.let { ReplyAction(onClick = { onReply(it) }) }
+                if (post.replies.isNotEmpty()) {
+                    ReplySection(
+                        replies = post.replies,
+                        onRetry = onRetry,
+                        audio = audio,
+                        // Suppressed while selecting: a selection acts on whole posts, and
+                        // a menu opening over it would offer actions on a different target.
+                        onReplyOptions = if (selecting) null else onReplyOptions,
+                        onOpenMedia = onOpenMedia,
+                    )
+                }
+
+                // Reply is offered once the server has acknowledged the message and given
+                // it an id — a reply needs something to attach to. Never on a read-only
+                // surface: a replaced message is not a conversation you can continue, and
+                // never on your own side of a two-sided thread, where quoting yourself back
+                // at the one other person in the conversation says nothing.
+                if (!isReadOnly && !ownSide) {
+                    post.rootServerId?.let { ReplyAction(onClick = { onReply(it) }) }
+                }
             }
         }
     }
@@ -443,20 +548,57 @@ private fun TextBody(message: ChatMessage.Text, searchQuery: String = "") {
     // v2 truncates long messages behind a "Read more" (`TEXT_VIEW_CHAR_LIMIT_SHOW`): a
     // pasted call sheet or a schedule dump otherwise fills the screen and buries every
     // message around it.
-    val isLong = message.body.length > READ_MORE_LIMIT
-    val shown = if (isLong && !expanded) message.body.take(READ_MORE_LIMIT) else message.body
+    // Names first, then the length check: a message full of ids is longer than the same
+    // message full of names, and truncating before substituting would cut in the wrong place
+    // and could leave half an id on screen.
+    val readable = remember(message.body, message.mentions) {
+        message.mentions.fold(message.body) { text, mention ->
+            text.replace("@${mention.userId}", "@${mention.name}")
+                .replace("@{${mention.userId}}", "@${mention.name}")
+        }
+    }
+
+    val isLong = readable.length > READ_MORE_LIMIT
+    val shown = if (isLong && !expanded) readable.take(READ_MORE_LIMIT) else readable
+
+    // Web addresses and phone numbers, made tappable. Found on the text actually shown, so
+    // a link that falls beyond the "Read more" cut is not offered while it is hidden.
+    val links = remember(shown) { messageLinks(shown) }
+
+    val linkStyle = TextLinkStyles(
+        style = SpanStyle(
+            color = ZillitTheme.colors.brand,
+            fontWeight = FontWeight.SemiBold,
+            textDecoration = TextDecoration.Underline,
+        ),
+    )
 
     // Highlights (project codes, links) are styled inline so a code stays copyable as
     // part of the sentence rather than being split into a separate element.
     val annotated = buildAnnotatedString {
         val spans = buildList {
             addAll(message.highlights.map { it to false })
+            // A mention reads as a reference to a person, so it gets the same treatment as
+            // a project code rather than a separate one.
+            addAll(message.mentions.map { "@${it.name}" to false })
             // A search term wins over a code highlight where they overlap — you are
             // looking for it right now.
             if (searchQuery.isNotBlank()) add(searchQuery to true)
         }
 
-        if (spans.isEmpty()) {
+        if (links.isNotEmpty()) {
+            // Links take precedence over the inline highlighting: only one of the two can
+            // own a span, and the one that does something on tap is the more useful.
+            var cursor = 0
+            links.forEach { link ->
+                if (link.range.first > cursor) append(shown.substring(cursor, link.range.first))
+                withLink(LinkAnnotation.Url(url = link.uri, styles = linkStyle)) {
+                    append(link.text)
+                }
+                cursor = link.range.last + 1
+            }
+            if (cursor < shown.length) append(shown.substring(cursor))
+        } else if (spans.isEmpty()) {
             append(shown)
         } else {
             val pattern = spans.joinToString("|") { Regex.escape(it.first) }
@@ -822,8 +964,17 @@ private fun FileRow(
 @Composable
 private fun LocationBody(message: ChatMessage.Location) {
     Column {
-        // Map thumbnail placeholder: a pin over a flat tint reads as a map without
-        // pulling in a tile SDK before the data layer exists.
+        // The map snapshot the sender uploaded, through the same loader as a picture: the
+        // local copy while it is still going up, then the thumbnail, then the full file.
+        // A location rarely has a thumbnail — the server does not make one — so in
+        // practice this is the full snapshot, which is what v2 shows too.
+        val model by rememberAttachmentImage(
+            remoteKey = message.remoteKey,
+            thumbnailKey = message.thumbnail,
+            fileName = message.remoteKey?.substringAfterLast('/').orEmpty(),
+            localPath = message.localPath,
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -833,12 +984,25 @@ private fun LocationBody(message: ChatMessage.Location) {
                 ),
             contentAlignment = Alignment.Center,
         ) {
+            // A pin over a flat tint stands in while nothing has arrived yet, and stays
+            // for a message whose snapshot never came — it still reads as a map.
             Icon(
                 imageVector = Icons.Filled.Place,
                 contentDescription = null,
                 tint = ZillitTheme.colors.danger,
                 modifier = Modifier.size(36.dp),
             )
+
+            if (model != null) {
+                AsyncImage(
+                    model = model,
+                    contentDescription = message.placeName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            UploadOverlay(message.sendState, Modifier.align(Alignment.Center))
         }
         Column(
             modifier = Modifier.padding(
@@ -852,11 +1016,15 @@ private fun LocationBody(message: ChatMessage.Location) {
                 style = MaterialTheme.typography.titleSmall,
                 color = ZillitTheme.colors.textPrimary,
             )
-            Text(
-                text = message.address,
-                style = MaterialTheme.typography.bodySmall,
-                color = ZillitTheme.colors.textSecondary,
-            )
+            // Both mappers fall back to the address for the title when there is no place
+            // name, so the second line is only worth drawing when it says something new.
+            if (message.address.isNotBlank() && message.address != message.placeName) {
+                Text(
+                    text = message.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ZillitTheme.colors.textSecondary,
+                )
+            }
         }
     }
 }
@@ -873,6 +1041,8 @@ private fun MessageFooter(
     message: ChatMessage,
     onRetry: (ChatMessage) -> Unit,
     showDeliveryReceipts: Boolean = false,
+    readByLabel: String? = null,
+    onCancelUpload: ((ChatMessage) -> Unit)? = null,
 ) {
     val state = message.sendState
 
@@ -891,7 +1061,11 @@ private fun MessageFooter(
         // they read as a status line rather than crowding the corner.
     ) {
         when (state) {
-            is SendState.Uploading -> UploadStatus(state.progress, Modifier.weight(1f))
+            is SendState.Uploading -> UploadStatus(
+                progress = state.progress,
+                modifier = Modifier.weight(1f),
+                onCancel = onCancelUpload?.let { cancel -> { cancel(message) } },
+            )
             SendState.Failed -> RetryPrompt(
                 modifier = Modifier.weight(1f),
                 onClick = { onRetry(message) },
@@ -916,6 +1090,18 @@ private fun MessageFooter(
             style = MaterialTheme.typography.labelSmall,
             color = ZillitTheme.colors.textTertiary,
         )
+
+        // "Read by 11" sits between the time and the ticks, where a group message needs a
+        // count rather than the single tick a one-to-one message gets. The names behind
+        // the count are in the message's own options, which is where v2 keeps them.
+        readByLabel?.let { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = ZillitTheme.colors.accent,
+                modifier = Modifier.padding(start = ZillitTheme.spacing.xs),
+            )
+        }
 
         // Delivery ticks are deliberately absent here.
         //
@@ -987,7 +1173,17 @@ private fun Tick(glyph: String, color: Color) {
 
 /** Paperclip, a determinate ring and the percentage — shown while a file is going up. */
 @Composable
-private fun UploadStatus(progress: Float, modifier: Modifier = Modifier) {
+private fun UploadStatus(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    /**
+     * Abandon the upload. Null hides the control rather than showing a dead one.
+     *
+     * Worth having on set: a 400MB clip picked by mistake otherwise occupies the queue and
+     * the connection until it finishes, and the thread has no other way to stop it.
+     */
+    onCancel: (() -> Unit)? = null,
+) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -1014,6 +1210,17 @@ private fun UploadStatus(progress: Float, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.labelSmall,
             color = ZillitTheme.colors.brand,
         )
+        onCancel?.let { cancel ->
+            Icon(
+                imageVector = Icons.Outlined.Close,
+                contentDescription = stringResource(R.string.cancel),
+                tint = ZillitTheme.colors.textTertiary,
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = cancel),
+            )
+        }
     }
 }
 
@@ -1080,6 +1287,14 @@ fun DateSeparatorRow(label: String, modifier: Modifier = Modifier) {
 
 /** Enough to read as a page without the file row scrolling off the bubble. */
 private val PAGE_PREVIEW_HEIGHT = 150.dp
+
+/**
+ * How wide a bubble may get on a two-sided thread, as a fraction of the row.
+ *
+ * The remaining fifth is the gutter that makes the side readable at a glance; a bubble
+ * allowed to reach both edges loses that signal the moment the text wraps.
+ */
+private const val TWO_SIDED_BUBBLE_FRACTION = 0.82f
 
 private val ROOT_AVATAR_SIZE = 36.dp
 
@@ -1191,3 +1406,128 @@ private fun BatchTile(item: ChatMessage) {
 }
 
 private const val BATCH_COLUMNS = 3
+
+/**
+ * The emoji chips under a message.
+ *
+ * Renders nothing at all when there are none — no reserved height, no empty row — because
+ * most messages in a production thread never get one and the gap would show on every line.
+ *
+ * Tapping a chip toggles your own reaction rather than opening anything: the row is the
+ * quickest path back out of a reaction you did not mean, and the highlight says which is
+ * yours. v2 needs the long-press menu for the same thing.
+ */
+@Composable
+private fun ReactionRow(
+    reactions: List<ChatReaction>,
+    onToggle: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (reactions.isEmpty()) return
+
+    Row(
+        modifier = modifier.padding(
+            start = ZillitTheme.spacing.md,
+            end = ZillitTheme.spacing.md,
+            top = ZillitTheme.spacing.xs,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        reactions.forEach { reaction ->
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (reaction.isMine) {
+                    ZillitTheme.colors.accentSoft
+                } else {
+                    ZillitTheme.colors.surfaceSunken
+                },
+                modifier = Modifier.clickable { onToggle(reaction.emoji) },
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(text = reaction.emoji, style = MaterialTheme.typography.labelMedium)
+                    // The count is only worth the width once more than one person agrees.
+                    if (reaction.count > 1) {
+                        Text(
+                            text = reaction.count.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (reaction.isMine) {
+                                ZillitTheme.colors.accent
+                            } else {
+                                ZillitTheme.colors.textSecondary
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The message a reply is answering, drawn above it.
+ *
+ * A tinted block with a bar down its leading edge — the shape every chat app uses, because
+ * it reads as "this part is quoted" without a label saying so. One line only: the quotation
+ * is context, and a long one would bury the reply it belongs to.
+ */
+@Composable
+private fun QuotedBlock(
+    quoted: QuotedMessage,
+    modifier: Modifier = Modifier,
+    onClick: ((String) -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .then(
+                if (onClick != null && quoted.messageId.isNotBlank()) {
+                    Modifier.clickable { onClick(quoted.messageId) }
+                } else {
+                    Modifier
+                },
+            )
+            .padding(
+                start = ZillitTheme.spacing.md,
+                end = ZillitTheme.spacing.md,
+                top = ZillitTheme.spacing.md,
+            )
+            .clip(RoundedCornerShape(ZillitTheme.shapes.small))
+            .background(ZillitTheme.colors.surfaceSunken)
+            .height(IntrinsicSize.Min),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(ZillitTheme.colors.accent),
+        )
+        Column(
+            modifier = Modifier.padding(
+                horizontal = ZillitTheme.spacing.sm,
+                vertical = ZillitTheme.spacing.xs,
+            ),
+        ) {
+            Text(
+                text = if (quoted.isOwn) {
+                    stringResource(R.string.chat_quoted_you)
+                } else {
+                    quoted.authorName
+                },
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = ZillitTheme.colors.accent,
+            )
+            Text(
+                text = quoted.preview,
+                style = MaterialTheme.typography.bodySmall,
+                color = ZillitTheme.colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}

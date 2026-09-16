@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.map
 
 /**
  * Every notification this device has been told about, and the badges derived from them.
@@ -264,6 +265,107 @@ class NotificationRepository @Inject constructor(
         return marked
     }
 
+    /**
+     * Which references under a path are still unread.
+     *
+     * Exists because a badge row is an **aggregate**: rows are keyed by the badge path and
+     * carry a count, so several unread items under one path collapse into one row and the
+     * individual ids are no longer recoverable from it. Mail needs the ids — "is *this*
+     * message unread" is the question every row in the list asks — so it reads the
+     * notifications the badges were computed from.
+     */
+    fun observeUnreadReferences(
+        projectId: String,
+        section: String,
+        unit: String? = null,
+        level1: String? = null,
+    ): kotlinx.coroutines.flow.Flow<Set<String>> {
+        val query = when {
+            unit == null -> realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1",
+                projectId, section,
+            )
+
+            // A blank `level_1` still counts. The scoping exists so a shared mailbox's
+            // unread does not bold rows in the personal one, and a row the server did not
+            // tag belongs to whichever mailbox is asking — dropping it would hide real
+            // unread mail, which is the worse failure of the two.
+            level1 != null -> realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1 AND unit == $2 " +
+                    "AND (level1 == $3 OR level1 == nil OR level1 == '')",
+                projectId, section, unit, level1,
+            )
+
+            else -> realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1 AND unit == $2",
+                projectId, section, unit,
+            )
+        }
+
+        return query.asFlow().map { change ->
+            change.list.mapNotNull { it.referenceId?.takeIf(String::isNotBlank) }.toSet()
+        }
+    }
+
+    /**
+     * Unread counts per `unit`, scoped to one `level_1`.
+     *
+     * The badge tree can group by unit already, but it cannot filter by a level below the
+     * one it is grouping on — and mail needs exactly that, because the folder counts in the
+     * drawer belong to whichever mailbox is open.
+     */
+    fun observeUnreadCountsByUnit(
+        projectId: String,
+        section: String,
+        level1: String?,
+    ): kotlinx.coroutines.flow.Flow<Map<String, Int>> {
+        val query = if (level1 == null) {
+            realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1",
+                projectId, section,
+            )
+        } else {
+            realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1 " +
+                    "AND (level1 == $2 OR level1 == nil OR level1 == '')",
+                projectId, section, level1,
+            )
+        }
+
+        return query.asFlow().map { change ->
+            change.list
+                .mapNotNull { it.unit?.takeIf(String::isNotBlank) }
+                .groupingBy { it }
+                .eachCount()
+        }
+    }
+
+    /** Unread counts grouped by one of the level columns — for mail, `level_1` is the mailbox. */
+    fun observeUnreadByLevel1(
+        projectId: String,
+        section: String,
+        unit: String? = null,
+    ): kotlinx.coroutines.flow.Flow<Map<String, Int>> {
+        val query = if (unit == null) {
+            realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1",
+                projectId, section,
+            )
+        } else {
+            realm.query<NotificationEntity>(
+                "isRead == false AND projectId == $0 AND section == $1 AND unit == $2",
+                projectId, section, unit,
+            )
+        }
+
+        return query.asFlow().map { change ->
+            change.list
+                .mapNotNull { it.level1?.takeIf(String::isNotBlank) }
+                .groupingBy { it }
+                .eachCount()
+        }
+    }
+
     suspend fun recomputeBadges() {
         val counts = realm.query<NotificationEntity>("isRead == false")
             .find()
@@ -296,7 +398,13 @@ class NotificationRepository @Inject constructor(
         projectId = projectId,
         section = section?.takeIf { it.isNotBlank() } ?: BadgeSection.GLOBAL,
         tool = tool?.takeIf { it.isNotBlank() },
-        unit = unit?.takeIf { it.isNotBlank() } ?: chatRoomId?.takeIf { it.isNotBlank() },
+        // A C&C message identifies its conversation by room for a group and by **sender**
+        // for a one-to-one — there is no room id on a direct message. Without the sender
+        // fallback every direct-message badge collapsed onto the section, so the C&C tab
+        // showed a count that no row in it could account for.
+        unit = unit?.takeIf { it.isNotBlank() }
+            ?: chatRoomId?.takeIf { it.isNotBlank() }
+            ?: senderId?.takeIf { it.isNotBlank() && section == BadgeSection.CNC },
         levels = listOfNotNull(level1, level2, level3).filter { it.isNotBlank() },
     )
 

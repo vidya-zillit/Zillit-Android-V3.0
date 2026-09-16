@@ -1,6 +1,7 @@
 package com.zillit.zillitapp.core.network
 
 import com.zillit.zillitapp.core.auth.TokenErrors
+import com.zillit.zillitapp.core.auth.TokenScope
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.network.sockets.ConnectTimeoutException
@@ -75,6 +76,23 @@ class ZillitApi @Inject constructor(
         query: Map<String, String> = emptyMap(),
     ): ApiResult<T> = execute(HttpMethod.Delete, url, module, null, query, serializer())
 
+    /**
+     * DELETE carrying a body.
+     *
+     * Unusual, and the mail service's shape: deleting folders, messages and drafts all
+     * identify the target in the body rather than the path. Ktor allows it; the signing
+     * pipeline treats it like any other body, so the `bodyhash` still covers what is sent.
+     */
+    suspend inline fun <reified B, reified T> deleteWithBody(
+        url: String,
+        body: B,
+        module: ModuleData = ModuleData.WITH_PROJECT_USER_ID,
+        query: Map<String, String> = emptyMap(),
+    ): ApiResult<T> = execute(
+        HttpMethod.Delete, url, module, json.encodeToString(serializer<B>(), body), query,
+        serializer(),
+    )
+
     suspend inline fun <reified B, reified T> post(
         url: String,
         body: B,
@@ -101,9 +119,10 @@ class ZillitApi @Inject constructor(
         body: B,
         module: ModuleData = ModuleData.WITH_PROJECT_USER_ID,
         query: Map<String, String> = emptyMap(),
+        projectOverride: com.zillit.zillitapp.core.session.SessionStore.ActiveProject? = null,
     ): ApiResult<T> = execute(
         HttpMethod.Patch, url, module, json.encodeToString(serializer<B>(), body), query,
-        serializer(),
+        serializer(), projectOverride,
     )
 
     /**
@@ -156,15 +175,15 @@ class ZillitApi @Inject constructor(
         val startedAt = System.currentTimeMillis()
         var statusCode = 0
         var responseText: String? = null
-        // Set when this attempt presented a bearer token, so a 401 can be read as "the
-        // token died" rather than "the server said no".
-        var usedToken = false
         // Guards the single retry the spec allows. A second 401 is a real one.
         var retried = false
 
         val result: ApiResult<T> = try {
-            var headers = buildHeaders(module, bodyJson, projectOverride)
-                ?.also { usedToken = it.containsKey(ApiHeaders.AUTHORIZATION) && module.sendsModuleData }
+            // The token this call rides on, when it rides on one. Resolved once so the
+            // 401 path can name exactly which token was rejected.
+            val scope = module.tokenScope(projectOverride)
+            var bearer = scope?.let { tokenSession.get().bearerTokenFor(it) }
+            var headers = buildHeaders(module, bodyJson, projectOverride, bearer)
             if (headers == null) {
                 ApiResult.Failure(
                     ApiError.Configuration(
@@ -187,41 +206,38 @@ class ZillitApi @Inject constructor(
 
                 // The token paths, in the order the spec describes them.
                 //
-                // 401 → refresh once, then retry once. Deliberately *not* a logout: v2's
-                // rule was 401 = sign out, and keeping that would sign people out every
-                // time an hour passed.
-                if (response.status.value == 401 && usedToken && !retried) {
+                // 401 on a bearer → recover once, retry once. Deliberately *not* a logout:
+                // v2's old rule was 401 = sign out, and keeping that would sign people out
+                // every time an hour passed. Recovery is the session's single-flight path,
+                // so a burst of 401s rotates exactly once.
+                if (response.status.value == 401 && bearer != null && scope != null && !retried) {
                     retried = true
-                    val projectId = projectOverride?.projectId ?: session.activeProject.value?.projectId
                     val tokens = tokenSession.get()
+                    val message = extractBackendMessage(text)
 
                     // A scope error means the wrong *kind* of token, not a dead one — the
                     // fix is a project token, not a refresh.
-                    if (extractBackendMessage(text) == TokenErrors.INVALID_SCOPE) {
-                        projectId?.let { tokens.invalidateProject(it) }
-                    }
-
-                    val renewed = if (extractBackendMessage(text) == TokenErrors.INVALID_SCOPE) {
-                        projectId?.let { tokens.establish(it) } == true
+                    val recovered = if (message == TokenErrors.INVALID_SCOPE && scope is TokenScope.Project) {
+                        tokens.invalidateProject(scope.projectId)
+                        tokens.bearerTokenFor(scope)
                     } else {
-                        tokens.refresh(projectId)
+                        tokens.recoverFromUnauthorized(scope, bearer)
                     }
 
-                    if (renewed) {
-                        headers = buildHeaders(module, bodyJson, projectOverride) ?: headers
+                    if (recovered != null && recovered != bearer) {
+                        bearer = recovered
+                        headers = buildHeaders(module, bodyJson, projectOverride, bearer) ?: headers
                         response = send(headers)
                         text = response.bodyAsText()
                     }
                 }
 
-                // 503 kill-switch: the feature is off server-side. Turn it off locally and
+                // Kill-switch: the feature is off server-side. Turn it off locally and
                 // repeat the call the old way — moduledata still works throughout the
                 // migration, so this must not surface as an error.
-                if (response.status.value == 503 &&
-                    extractBackendMessage(text) == TokenErrors.AUTH_DISABLED
-                ) {
-                    tokenSession.get().setEnabled(false)
-                    headers = buildHeaders(module, bodyJson, projectOverride) ?: headers
+                if (bearer != null && extractBackendMessage(text) == TokenErrors.AUTH_DISABLED) {
+                    tokenSession.get().killSwitch()
+                    headers = buildHeaders(module, bodyJson, projectOverride, bearer = null) ?: headers
                     response = send(headers)
                     text = response.bodyAsText()
                 }
@@ -287,10 +303,51 @@ class ZillitApi @Inject constructor(
     @Volatile
     private var lastModuleDataPlain: String? = null
 
+    /**
+     * Which token a variant rides on, or null when it must stay on moduledata.
+     *
+     * Mirrors v2's `TokenAuth.scopeFor`. The identity variants carry nothing the token does
+     * not; `BUCKET_DATA` rides too, since in this app it fronts ordinary CRUD routes (the
+     * S3 transfer itself goes through the SDK, not through here). A project variant with no
+     * project open falls back to the **device** token rather than to moduledata: several
+     * device-level routes use a project variant only by default, and the backend classes
+     * them as device-token calls — moduledata there is what `libs_moduledata_not_accepted`
+     * looks like. The scanner, Box and pre-registration variants feed the only routes that
+     * read non-identity header fields, and stay legacy.
+     */
+    private fun ModuleData.tokenScope(
+        projectOverride: com.zillit.zillitapp.core.session.SessionStore.ActiveProject?,
+    ): TokenScope? {
+        fun projectOrDevice(projectId: String?): TokenScope =
+            projectId?.takeIf { it.isNotBlank() }?.let { TokenScope.Project(it) } ?: TokenScope.Device
+
+        return when (this) {
+            ModuleData.DEFAULT -> TokenScope.Device
+
+            ModuleData.WITH_PROJECT_ID,
+            ModuleData.WITH_PROJECT_USER_ID,
+            ModuleData.WITH_PROJECT_USER_BUCKET_DATA,
+            ModuleData.NOTIFICATION_ACKNOWLEDGE,
+                -> projectOrDevice(projectOverride?.projectId ?: session.activeProject.value?.projectId)
+
+            ModuleData.CALLING_WITH_PROJECT_USER_ID ->
+                projectOrDevice(session.callingIdentity.value?.projectId)
+
+            ModuleData.SCANNER_DEVICE_ID,
+            ModuleData.WITH_PROJECT_USER_BOX_DATA,
+            ModuleData.EMPTY_DEVICE_ID,
+            ModuleData.CHAT_GPT_TOKEN,
+            ModuleData.MAP_ROUTE_REQUEST,
+                -> null
+        }
+    }
+
     private suspend fun buildHeaders(
         module: ModuleData,
         bodyJson: String?,
         projectOverride: com.zillit.zillitapp.core.session.SessionStore.ActiveProject? = null,
+        /** The bearer this call rides on; null sends moduledata instead. */
+        bearer: String? = null,
     ): Map<String, String>? {
         if (!module.sendsModuleData) {
             return when (module) {
@@ -308,15 +365,9 @@ class ZillitApi @Inject constructor(
 
         // Token mode: the bearer replaces moduledata entirely — no encrypted blob, and so
         // no body hash, which existed only to sign that blob. Everything else about the
-        // request is unchanged, which is the whole point of the migration. Only for the
-        // variants whose moduledata is exactly the device/project/user triple the token
-        // carries — see [ModuleData.tokenEligible].
-        val projectId = projectOverride?.projectId ?: session.activeProject.value?.projectId
-        val bearer = if (module.tokenEligible) {
-            tokenSession.get().currentProjectToken(projectId)
-        } else {
-            null
-        }
+        // request is unchanged, which is the whole point of the migration. Sending
+        // moduledata *alongside* a token does not work — the token path never decrypts
+        // it — so it is one or the other.
         bearer?.let { token ->
             lastModuleDataPlain = null
             return buildMap {
@@ -355,7 +406,14 @@ class ZillitApi @Inject constructor(
             val message = extractBackendMessage(text).orEmpty()
             return ApiResult.Failure(
                 when (response.status.value) {
-                    401 -> ApiError.Unauthorized(message)
+                    // A device the backend has never seen — a fresh install before its
+                    // first create or join. Not a dead session: there is nothing to sign
+                    // back into, and the caller decides what an unknown device means.
+                    401 -> if (message == TokenErrors.INVALID_DEVICE_ID) {
+                        ApiError.InvalidDevice(message)
+                    } else {
+                        ApiError.Unauthorized(message)
+                    }
                     403 -> ApiError.Forbidden(message)
                     else -> ApiError.Http(
                         status = response.status.value,

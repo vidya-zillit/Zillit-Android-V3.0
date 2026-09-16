@@ -36,6 +36,9 @@ import com.zillit.zillitapp.core.ui.components.ZillitMainTopBar
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
 import com.zillit.zillitapp.feature.calendar.ui.lists.EventListKind
 import com.zillit.zillitapp.feature.home.ui.HomeRoute
+import com.zillit.zillitapp.feature.email.ui.EmailRoute
+import com.zillit.zillitapp.feature.cnc.ui.CncRoute
+import com.zillit.zillitapp.feature.tools.ui.ToolsRoute
 
 /** The five dashboard destinations, in the order v2 shows them. */
 enum class DashboardTab(val labelRes: Int, val icon: ImageVector) {
@@ -57,6 +60,23 @@ fun DashboardRoute(
     onCreateEvent: (Long) -> Unit,
     onOpenCalendarSettings: () -> Unit,
     onOpenSetting: (SettingsDestination) -> Unit,
+    onOpenEmail: (emailId: String, folderName: String, threadId: String?) -> Unit,
+    onComposeEmail: (draftId: String?) -> Unit,
+    onSearchEmail: () -> Unit,
+    onPickEmailFolder: (sourceFolder: String) -> Unit,
+    pickedEmailFolder: String?,
+    onEmailFolderHandled: () -> Unit,
+    onOpenEmailSettings: () -> Unit,
+    onOpenEmailContacts: () -> Unit,
+    onOpenEmailCalendar: () -> Unit,
+    onEmailReadBy: (emailId: String, folderName: String) -> Unit,
+    /** From the reading pane on a wide window; the phone reaches the composer from its own detail route. */
+    onEmailReply: (mode: String, emailId: String, folderName: String) -> Unit,
+    onEmailAddContact: (email: String, name: String) -> Unit,
+    onCustomizeTools: () -> Unit,
+    onOpenConversation: (id: String, isGroup: Boolean) -> Unit,
+    onOpenCncProfile: (id: String) -> Unit,
+    onCreateCncGroup: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
     val badges by viewModel.badges.collectAsStateWithLifecycle()
@@ -72,6 +92,22 @@ fun DashboardRoute(
         onCreateEvent = onCreateEvent,
         onOpenCalendarSettings = onOpenCalendarSettings,
         onOpenSetting = onOpenSetting,
+        onOpenEmail = onOpenEmail,
+        onComposeEmail = onComposeEmail,
+        onSearchEmail = onSearchEmail,
+        onPickEmailFolder = onPickEmailFolder,
+        pickedEmailFolder = pickedEmailFolder,
+        onEmailFolderHandled = onEmailFolderHandled,
+        onOpenEmailSettings = onOpenEmailSettings,
+        onOpenEmailContacts = onOpenEmailContacts,
+        onOpenEmailCalendar = onOpenEmailCalendar,
+        onEmailReadBy = onEmailReadBy,
+        onEmailReply = onEmailReply,
+        onEmailAddContact = onEmailAddContact,
+        onCustomizeTools = onCustomizeTools,
+        onOpenConversation = onOpenConversation,
+        onOpenCncProfile = onOpenCncProfile,
+        onCreateCncGroup = onCreateCncGroup,
     )
 }
 
@@ -97,6 +133,23 @@ fun DashboardScreen(
     onCreateEvent: (Long) -> Unit,
     onOpenCalendarSettings: () -> Unit,
     onOpenSetting: (SettingsDestination) -> Unit,
+    onOpenEmail: (emailId: String, folderName: String, threadId: String?) -> Unit,
+    onComposeEmail: (draftId: String?) -> Unit,
+    onSearchEmail: () -> Unit,
+    onPickEmailFolder: (sourceFolder: String) -> Unit,
+    pickedEmailFolder: String?,
+    onEmailFolderHandled: () -> Unit,
+    onOpenEmailSettings: () -> Unit,
+    onOpenEmailContacts: () -> Unit,
+    onOpenEmailCalendar: () -> Unit,
+    onEmailReadBy: (emailId: String, folderName: String) -> Unit,
+    /** From the reading pane on a wide window; the phone reaches the composer from its own detail route. */
+    onEmailReply: (mode: String, emailId: String, folderName: String) -> Unit,
+    onEmailAddContact: (email: String, name: String) -> Unit,
+    onCustomizeTools: () -> Unit,
+    onOpenConversation: (id: String, isGroup: Boolean) -> Unit,
+    onOpenCncProfile: (id: String) -> Unit,
+    onCreateCncGroup: () -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(DashboardTab.HOME) }
 
@@ -156,6 +209,37 @@ fun DashboardScreen(
                     onOpenEventList = onOpenEventList,
                     onCreateEvent = onCreateEvent,
                     onOpenCalendarSettings = onOpenCalendarSettings,
+                )
+
+                // Mail: the drawer, the list, and the sheets that belong to them. Every
+                // way out of it — a message, the composer, settings — is a route.
+                DashboardTab.EMAIL -> EmailRoute(
+                    onOpenDetail = onOpenEmail,
+                    onCompose = onComposeEmail,
+                    onSearch = onSearchEmail,
+                    onPickFolder = onPickEmailFolder,
+                    pickedFolder = pickedEmailFolder,
+                    onFolderHandled = onEmailFolderHandled,
+                    onOpenSettings = onOpenEmailSettings,
+                    onOpenContacts = onOpenEmailContacts,
+                    onOpenCalendar = onOpenEmailCalendar,
+                    onReadBy = onEmailReadBy,
+                    onReply = onEmailReply,
+                    onAddContact = onEmailAddContact,
+                )
+
+                // Tools: the sections, the search, and the two screens that customize
+                // them. Every tile that has a screen of its own opens it; the rest say
+                // where the tool can be used.
+                DashboardTab.TOOLS -> ToolsRoute(onOpenCustomize = onCustomizeTools)
+
+                // Chat & Calling. The lists live here; everything they open is a
+                // destination of its own, so a conversation is a page rather than a panel
+                // inside this shell.
+                DashboardTab.CNC -> CncRoute(
+                    onOpenConversation = onOpenConversation,
+                    onOpenProfile = onOpenCncProfile,
+                    onCreateGroup = onCreateCncGroup,
                 )
 
                 DashboardTab.SETTINGS -> SettingsScreen(

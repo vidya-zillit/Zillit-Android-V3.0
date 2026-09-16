@@ -344,6 +344,14 @@ class ChatRepository @Inject constructor(
         sizeBytes: Long,
         durationMs: Long,
         messageGroup: Long,
+        /**
+         * The pin, when the attachment is a map snapshot.
+         *
+         * Stored on the optimistic row so the sender's own bubble can open a maps app
+         * straight away — the coordinates otherwise only arrive with the server's echo,
+         * and a pin you cannot open until then reads as broken.
+         */
+        location: com.zillit.zillitapp.core.storage.PendingLocation? = null,
     ) {
         val now = System.currentTimeMillis()
         realm.write {
@@ -366,6 +374,11 @@ class ChatRepository @Inject constructor(
                     this.messageGroup = messageGroup.takeIf { it != 0L } ?: now
                     created = now
                     updated = now
+                    location?.let {
+                        locationLatitude = it.latitude
+                        locationLongitude = it.longitude
+                        locationAddress = it.address
+                    }
                 },
                 UpdatePolicy.ALL,
             )

@@ -15,6 +15,9 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transformWhile
 import java.io.File
 
 /**
@@ -59,6 +62,16 @@ fun rememberAttachmentImage(
         thumbnailKey,
         localPath,
     ) {
+        // Drop whatever the previous keys resolved to, FIRST.
+        //
+        // `produceState` restarts this block when a key changes but keeps its last emitted
+        // value, and a lazy list reuses a row's composition for a different person as it
+        // scrolls. Without this reset the row keeps the picture belonging to whoever used
+        // to occupy it — and because the producer below returns early on a non-null value,
+        // it never even fetches the right one. That is the "wrong profile photo after
+        // scrolling" bug, and it applied to every avatar and image bubble in the app.
+        value = localPath?.takeIf { File(it).exists() }
+
         if (value != null) return@produceState
 
         // Full file first if it is already cached: no point showing a low-res preview
@@ -68,23 +81,78 @@ fun rememberAttachmentImage(
         }
 
         // Otherwise the thumbnail, which is small and fills the bubble fast.
-        thumbnailKey?.takeIf { it.isNotBlank() }?.let { key ->
-            val thumbName = key.substringAfterLast('/')
-            cache.cached(key, thumbName)?.let { value = it }
-                ?: downloader.download(key, thumbName, module)
+        val thumbKey = thumbnailKey?.takeIf { it.isNotBlank() }
+        val thumb = thumbKey?.let { key -> fetch(downloader, cache, key, key.substringAfterLast('/'), module) }
+        if (thumb != null) value = thumb
 
+        // No thumbnail — the backend did not make one, or the fetch failed — so the full
+        // file is what gets shown. This is v2's rule (`getImageAndShowInViewForOthers`:
+        // thumbnail when there is one, else `media`), and without it a picture with no
+        // preview stays a blank tile forever. Only when the file is itself a picture: a
+        // document or a video with no thumbnail has nothing an image view could draw, and
+        // pulling a 200MB file to find that out is the wrong answer.
+        val fullKey = remoteKey?.takeIf { it.isNotBlank() }
+        if (thumb == null && fullKey != null && fileName.isImageFileName()) {
+            fetch(downloader, cache, fullKey, fileName, module)?.let { value = it; return@produceState }
+        }
+
+        // Upgrade in place once the full file lands — a tap on the download control, or
+        // another bubble sharing the same object — so the preview is never shown over a
+        // better copy already on disk.
+        if (fullKey != null) {
             downloader.states.collect { states ->
-                val state = states[key]
-                if (state is DownloadState.Ready) {
-                    // Only upgrade if the full file has not already landed.
-                    if (value == null || value is File && (value as File).name == thumbName) {
-                        value = state.file
-                    }
-                }
+                val state = states[fullKey]
+                if (state is DownloadState.Ready) value = state.file
             }
         }
     }
 }
+
+/**
+ * The file for [key], downloading it if it is not cached; null when the transfer failed.
+ *
+ * Waits on the downloader's state rather than starting its own transfer, so two bubbles
+ * pointing at the same object still share one download. A failure is read from the key
+ * being **removed** from the state map after it was in flight — the downloader clears a
+ * failed key rather than recording it, so the next composition can retry.
+ */
+private suspend fun fetch(
+    downloader: AttachmentDownloader,
+    cache: MediaCache,
+    key: String,
+    fileName: String,
+    module: String,
+): File? {
+    cache.cached(key, fileName)?.let { return it }
+    downloader.download(key, fileName, module)
+
+    var wasInFlight = false
+    return downloader.states
+        .map { states -> states[key] }
+        .transformWhile { state ->
+            when (state) {
+                is DownloadState.Ready -> { emit(state.file); false }
+                is DownloadState.Failed -> { emit(null); false }
+                is DownloadState.InProgress -> { wasInFlight = true; true }
+                // Absent after being in flight means the download failed and was cleared.
+                null -> if (wasInFlight) { emit(null); false } else true
+                DownloadState.NotDownloaded -> true
+            }
+        }
+        .firstOrNull()
+}
+
+/**
+ * Whether a file name is one an image view can decode.
+ *
+ * Judged from the extension because that is all a remote key offers, and it is the same
+ * test v2 makes (`media.getMimeType().contains("image")`) before showing `media` in place
+ * of a missing thumbnail.
+ */
+private fun String.isImageFileName(): Boolean =
+    substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
+
+private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif")
 
 /** Triggers the full-file download and reports progress, for the download button. */
 @Composable
@@ -119,4 +187,5 @@ fun rememberDownloadState(
 internal interface ChatAttachmentEntryPoint {
     fun attachmentDownloader(): AttachmentDownloader
     fun mediaCache(): MediaCache
+    fun deviceSaver(): com.zillit.zillitapp.core.storage.DeviceSaver
 }

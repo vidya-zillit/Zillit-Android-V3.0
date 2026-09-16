@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -86,6 +87,18 @@ class LabelRepository @Inject constructor(
 
     /** Form/field identifiers. */
     val identifiers: StateFlow<Map<String, String>> = dictionaryFlow(LabelDictionary.IDENTIFIERS)
+
+    /**
+     * All three at once — what a view model should observe.
+     *
+     * Server text is resolved against whichever dictionary holds the key, so taking only
+     * [labels] is how a message code ends up rendered as a humanised identifier. One flow
+     * means a call site cannot pick the wrong one.
+     */
+    val dictionaries: StateFlow<ServerDictionaries> =
+        combine(labels, messages, identifiers) { labels, messages, identifiers ->
+            ServerDictionaries(labels, messages, identifiers)
+        }.stateIn(scope, SharingStarted.Eagerly, ServerDictionaries())
 
     /**
      * Re-downloads the dictionaries only if the server says they changed, or if the

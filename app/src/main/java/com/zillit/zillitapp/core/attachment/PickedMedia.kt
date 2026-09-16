@@ -63,6 +63,16 @@ sealed interface AttachmentResult {
         val latitude: Double,
         val longitude: Double,
         val address: String,
+        /**
+         * A snapshot of the map.
+         *
+         * A chat location is an image message with coordinates: the backend refuses one
+         * with no attachment, and other clients render this picture rather than drawing a
+         * map of their own. Null only when the capture failed.
+         */
+        val snapshotPath: String? = null,
+        val snapshotWidth: Int = 0,
+        val snapshotHeight: Int = 0,
     ) : AttachmentResult
 
     data class Contact(val name: String, val phone: String) : AttachmentResult

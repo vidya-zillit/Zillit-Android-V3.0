@@ -5,6 +5,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.zillit.zillitapp.R
@@ -66,6 +70,11 @@ fun ZillitConfirmDialog(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
                 color = ZillitTheme.colors.textSecondary,
+                // Some of these are a paragraph — a tool explainer, a rule that failed —
+                // and an AlertDialog clips rather than scrolls what it cannot fit.
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
             )
         },
         confirmButton = {
@@ -88,4 +97,35 @@ fun ZillitConfirmDialog(
             }
         },
     )
+}
+
+/**
+ * "Are you sure you want to delete "X"?" — shown while [target] is non-null.
+ *
+ * Five list screens need exactly this dialog and differ only in the noun in the title, so
+ * they share one rather than each carrying a copy. [name] pulls the label out of the row, so
+ * the caller never has to hoist a second piece of state alongside the target.
+ */
+@Composable
+fun <T : Any> DeleteConfirmDialog(
+    target: T?,
+    title: String,
+    name: (T) -> String,
+    onConfirm: (T) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    target?.let { item ->
+        ZillitConfirmDialog(
+            title = title,
+            message = stringResource(R.string.email_delete_named_message, name(item)),
+            confirmLabel = stringResource(R.string.delete),
+            dismissLabel = stringResource(R.string.cancel),
+            isDestructive = true,
+            onConfirm = {
+                onDismiss()
+                onConfirm(item)
+            },
+            onDismiss = onDismiss,
+        )
+    }
 }

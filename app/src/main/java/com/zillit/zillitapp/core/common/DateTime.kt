@@ -162,6 +162,9 @@ fun Long.toDayAtTimeLabel(): String = format(DateTime.PATTERN_DAY_AT_TIME)
 /** `13:32` */
 fun Long.toClockTime(): String = format(DateTime.PATTERN_CLOCK)
 
+/** `1:32 PM` — the clock as it is spoken, for anything read alongside the rest of a day. */
+fun Long.toTimeLabel(): String = format(DateTime.PATTERN_TIME_12)
+
 /** `22 Aug 2026`, no leading zero. */
 fun Long.toDaySeparatorLabel(): String = format(DateTime.PATTERN_DAY_SEPARATOR)
 

@@ -36,8 +36,35 @@ class ProjectToolEntity : RealmObject {
     var downloadAccess: Boolean = true
     var adminAccess: Boolean = false
 
+    /** The Tools-tab section this belongs to. Blank is the "Ungrouped" bucket. */
+    @Index
+    var groupIdentifier: String = ""
+
+    /**
+     * Where this row is allowed to appear.
+     *
+     * The tools endpoint feeds both the Tools tab and Home, and a row can be for either,
+     * both, or neither. Storing both flags is what lets one query answer "what goes on the
+     * Tools tab" without re-deriving it from the identifier.
+     */
+    var isTool: Boolean = false
+    var isHome: Boolean = false
+    var hasSubUnits: Boolean = false
+
+    /** Whether an admin may change this right for others. For the permission grid. */
+    var viewingUpdatable: Boolean = false
+    var postingUpdatable: Boolean = false
+    var downloadUpdatable: Boolean = false
+
     var sortOrder: Int = 0
 
+    /**
+     * The row re-encoded from the fields above.
+     *
+     * **Not the wire payload.** It is serialized from the parsed object, so a field the DTO
+     * does not declare is already gone by the time this is written — it is a convenience for
+     * debugging, never a recovery path for something the client failed to model.
+     */
     var rawJson: String = ""
 
     companion object {

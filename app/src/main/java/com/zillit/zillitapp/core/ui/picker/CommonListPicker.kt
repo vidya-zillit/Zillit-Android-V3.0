@@ -1,6 +1,5 @@
 package com.zillit.zillitapp.core.ui.picker
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,11 +26,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -39,10 +36,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.ui.components.EmptyState
 import com.zillit.zillitapp.core.ui.components.PrimaryButton
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import com.zillit.zillitapp.core.ui.components.SearchField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * One selectable row.
@@ -87,7 +88,8 @@ fun CommonListPicker(
     searchable: Boolean = true,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
 
     // Saveable so a rotate mid-selection does not discard the query or the ticks.
     var query by rememberSaveable { mutableStateOf("") }
@@ -99,8 +101,8 @@ fun CommonListPicker(
                 item
             } else {
                 item.copy(
-                    title = labels.resolveLabel(item.title),
-                    subtitle = item.subtitle?.let { labels.resolveLabel(it) },
+                    title = labels.resolve(item.title),
+                    subtitle = item.subtitle?.let { labels.resolve(it) },
                 )
             }
         }
@@ -137,7 +139,7 @@ fun CommonListPicker(
             )
 
             if (searchable && resolved.size >= SEARCH_THRESHOLD) {
-                PickerSearchField(query = query, onQueryChange = { query = it })
+                SearchField(query = query, onQueryChange = { query = it })
             }
 
             if (filtered.isEmpty()) {
@@ -254,47 +256,6 @@ private fun PickerRow(
     }
 }
 
-@Composable
-private fun PickerSearchField(query: String, onQueryChange: (String) -> Unit) {
-    androidx.compose.foundation.text.BasicTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
-            color = ZillitTheme.colors.textPrimary,
-        ),
-        cursorBrush = androidx.compose.ui.graphics.SolidColor(ZillitTheme.colors.brand),
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = ZillitTheme.colors.surfaceSunken,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(
-                    ZillitTheme.shapes.pill,
-                ),
-            )
-            .padding(horizontal = ZillitTheme.spacing.md, vertical = ZillitTheme.spacing.md),
-        decorationBox = { inner ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = null,
-                    tint = ZillitTheme.colors.textTertiary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Box(modifier = Modifier.weight(1f).padding(start = ZillitTheme.spacing.sm)) {
-                    if (query.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.action_search),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ZillitTheme.colors.textTertiary,
-                        )
-                    }
-                    inner()
-                }
-            }
-        },
-    )
-}
 
 /** Below this many rows a search field is noise rather than help. */
 private const val SEARCH_THRESHOLD = 8

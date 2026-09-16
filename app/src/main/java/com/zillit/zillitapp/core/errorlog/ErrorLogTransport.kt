@@ -17,6 +17,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,8 +44,24 @@ class ErrorLogTransport @Inject constructor(
     private val deviceInfo: DeviceInfoProvider,
 ) {
 
+    /**
+     * Consecutive failures, and when to stop refusing on their account.
+     *
+     * The log endpoint can be down while the rest of the app is perfectly healthy — it
+     * answered `502 Bad Gateway` six times in the first two seconds of one launch, once per
+     * event, because every immediate-send event opens its own request. Each of those is a
+     * round trip competing with the calls that actually load the screen, and none of them
+     * could ever have succeeded. So after a few in a row the transport stops trying for a
+     * while. Nothing is lost: a refusal returns false exactly like a failure, and the queue
+     * keeps the rows for the next attempt.
+     */
+    private val consecutiveFailures = AtomicInteger(0)
+    private val silentUntil = AtomicLong(0L)
+
     /** True only when the server accepted the batch — anything else keeps the rows queued. */
     suspend fun send(events: List<LogEnvelope>): Boolean = runCatching {
+        if (System.currentTimeMillis() < silentUntil.get()) return false
+
         val moduleData = crypto.encrypt(moduleDataFactory.build(ModuleData.WITH_PROJECT_USER_ID))
         if (moduleData.isEmpty()) return false
 
@@ -57,16 +75,38 @@ class ErrorLogTransport @Inject constructor(
             setBody(body)
         }
 
-        if (!response.status.isSuccess()) {
-            ZillitLog.w(TAG, "log post → HTTP ${response.status.value}: ${response.bodyAsText().take(200)}")
+        if (response.status.isSuccess()) {
+            consecutiveFailures.set(0)
+            return true
         }
-        response.status.isSuccess()
+
+        // A gateway error (the service behind the host is down) comes as nginx's HTML page,
+        // which says nothing the status code does not — one line, not a page of markup.
+        val text = response.bodyAsText()
+        val detail = if (text.trimStart().startsWith("<")) "(gateway error page)" else text.take(200)
+        ZillitLog.w(TAG, "log post → HTTP ${response.status.value} $detail")
+        noteFailure()
+        false
     }.getOrElse {
         // A transport failure is exactly what the queue is for; nothing to report here.
+        noteFailure()
         false
+    }
+
+    /** Opens the cooldown once the endpoint has failed [FAILURES_BEFORE_PAUSE] times running. */
+    private fun noteFailure() {
+        if (consecutiveFailures.incrementAndGet() < FAILURES_BEFORE_PAUSE) return
+
+        consecutiveFailures.set(0)
+        silentUntil.set(System.currentTimeMillis() + PAUSE_MS)
+        ZillitLog.w(TAG, "log endpoint unhealthy — pausing log posts for ${PAUSE_MS / 1_000}s")
     }
 
     private companion object {
         const val TAG = "ErrorLogTransport"
+
+        /** Enough to rule out one bad request, few enough to stop a burst. */
+        const val FAILURES_BEFORE_PAUSE = 3
+        const val PAUSE_MS = 60_000L
     }
 }

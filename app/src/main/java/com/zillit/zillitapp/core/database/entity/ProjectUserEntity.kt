@@ -59,6 +59,19 @@ class ProjectUserEntity : RealmObject {
      */
     var profileThumbnailKey: String? = null
 
+    /**
+     * Whether this person shares their position with the project.
+     *
+     * Drives whether the profile offers to show it at all. Without it the app has no way to
+     * tell "no position yet" from "not yours to see", and would offer the action to
+     * everyone.
+     */
+    var showsLocation: Boolean = false
+
+    /** Their last known position. Both zero means none has ever been recorded. */
+    var lastLatitude: Double = 0.0
+    var lastLongitude: Double = 0.0
+
     var isAdmin: Boolean = false
     var isOwner: Boolean = false
     var enabled: Boolean = true
@@ -74,6 +87,12 @@ class ProjectUserEntity : RealmObject {
     var keepNamePrivate: Boolean = false
 
     var isExternalUser: Boolean = false
+
+    /** For presence, which is keyed by device rather than by user. */
+    var deviceId: String = ""
+
+    /** When the conversation with this person last moved. Orders the Chat tab. */
+    var sortingActivity: Long = 0
 
     var updated: Long = 0
 

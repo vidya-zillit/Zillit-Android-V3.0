@@ -35,9 +35,28 @@ data class ProjectUser(
     val status: String?,
     val keepNamePrivate: Boolean,
     val isExternalUser: Boolean,
+    /** Their device, for presence. Empty when the directory has not seen one. */
+    val deviceId: String = "",
+    /** When the conversation with this person last moved. Orders the Chat tab. */
+    val sortingActivity: Long = 0,
     val updated: Long,
+    /**
+     * The user's own mailbox, when the profile endpoint supplied one.
+     *
+     * Null on every user read from the crew list — only `user/profile` returns it — so the
+     * email module reads it from [com.zillit.zillitapp.core.session.CurrentUserStore] and
+     * never from the directory.
+     */
+    val mailbox: MailboxInfo? = null,
+    /** BCC presets — blind-copied on every mail this user sends. */
+    val bccPresets: List<String> = emptyList(),
     /** The untouched server object, for fields without a typed column. */
     val rawJson: String,
+    /** Whether this person shares their position with the project. */
+    val showsLocation: Boolean = false,
+    /** Their last known position; both zero means none has been recorded. */
+    val lastLatitude: Double = 0.0,
+    val lastLongitude: Double = 0.0,
 ) {
     /**
      * What to show in a chat header or a member row.
@@ -96,6 +115,17 @@ data class ProjectTool(
     val downloadAccess: Boolean,
     val adminAccess: Boolean,
     val sortOrder: Int,
+    /** The Tools-tab section. Blank is the "Ungrouped" bucket. */
+    val groupIdentifier: String = "",
+    /** True when this belongs on the Tools tab. */
+    val isTool: Boolean = false,
+    /** True when this is a Home unit. A row can be both, or neither. */
+    val isHome: Boolean = false,
+    val hasSubUnits: Boolean = false,
+    /** Whether an admin may change this right for other users. For the permission grid. */
+    val viewingUpdatable: Boolean = false,
+    val postingUpdatable: Boolean = false,
+    val downloadUpdatable: Boolean = false,
 )
 
 /**
@@ -151,12 +181,17 @@ internal fun ProjectUserEntity.toDomain() = ProjectUser(
     countryCode = countryCode,
     profilePictureUrl = profilePictureUrl,
     profileThumbnailKey = profileThumbnailKey,
+    showsLocation = showsLocation,
+    lastLatitude = lastLatitude,
+    lastLongitude = lastLongitude,
     isAdmin = isAdmin,
     isOwner = isOwner,
     enabled = enabled,
     status = status,
     keepNamePrivate = keepNamePrivate,
     isExternalUser = isExternalUser,
+    deviceId = deviceId,
+    sortingActivity = sortingActivity,
     updated = updated,
     rawJson = rawJson,
 )
@@ -186,4 +221,33 @@ internal fun ProjectToolEntity.toDomain() = ProjectTool(
     downloadAccess = downloadAccess,
     adminAccess = adminAccess,
     sortOrder = sortOrder,
+    groupIdentifier = groupIdentifier,
+    isTool = isTool,
+    isHome = isHome,
+    hasSubUnits = hasSubUnits,
+    viewingUpdatable = viewingUpdatable,
+    postingUpdatable = postingUpdatable,
+    downloadUpdatable = downloadUpdatable,
+)
+
+/**
+ * A mailbox's address and how to reach it from an external client.
+ *
+ * Carries no password: the stored one is `enc:v1:…` ciphertext, and the plaintext comes
+ * from `imap-credentials/reveal` on an explicit, audit-logged request.
+ */
+@kotlinx.serialization.Serializable
+data class MailboxInfo(
+    val address: String,
+    val name: String = "",
+    val smtpHost: String = "",
+    val smtpPort: Int = 0,
+    val smtpUserName: String = "",
+    val imapHost: String = "",
+    val imapPort: Int = 0,
+    val imapUserName: String = "",
+    /** The user's saved preference for grouping a folder by conversation. */
+    val conversationView: Boolean = false,
+    /** The shared mailbox's own presets, separate from the user's. */
+    val bccPresets: List<String> = emptyList(),
 )

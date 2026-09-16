@@ -16,30 +16,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,6 +41,9 @@ import com.zillit.zillitapp.core.labels.asServerText
 import com.zillit.zillitapp.core.labels.resolve
 import com.zillit.zillitapp.core.ui.components.ZillitConfirmDialog
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import com.zillit.zillitapp.core.ui.components.SearchField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * One row: who, and when they read or received it.
@@ -159,7 +154,12 @@ fun ReadByUserScreen(
             }
         }
 
-        SearchField(query = query, onQueryChange = { query = it })
+        SearchField(
+            query = query,
+            onQueryChange = { query = it },
+            placeholder = stringResource(R.string.search_by_user_name),
+            modifier = Modifier.padding(ZillitTheme.spacing.md),
+        )
 
         when {
             state.isLoading && state.read.isEmpty() && state.unread.isEmpty() -> Box(
@@ -214,47 +214,6 @@ fun ReadByUserScreen(
 private fun List<ReadByPerson>.filtered(query: String): List<ReadByPerson> =
     if (query.isBlank()) this else filter { it.name.contains(query.trim(), ignoreCase = true) }
 
-@Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(ZillitTheme.spacing.md)
-            .clip(RoundedCornerShape(ZillitTheme.shapes.pill))
-            .background(ZillitTheme.colors.surfaceSunken)
-            .padding(horizontal = ZillitTheme.spacing.md, vertical = ZillitTheme.spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.sm),
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Search,
-            contentDescription = null,
-            tint = ZillitTheme.colors.textTertiary,
-            modifier = Modifier.size(18.dp),
-        )
-        Box(modifier = Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.search_by_user_name),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ZillitTheme.colors.textTertiary,
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = LocalTextStyle.current.merge(
-                    MaterialTheme.typography.bodyMedium.copy(
-                        color = ZillitTheme.colors.textPrimary,
-                    ),
-                ),
-                cursorBrush = SolidColor(ZillitTheme.colors.brand),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
 
 @Composable
 private fun SectionHeader(title: String, trailing: String? = null, showTick: Boolean = false) {

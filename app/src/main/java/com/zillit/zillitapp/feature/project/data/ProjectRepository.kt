@@ -8,6 +8,7 @@ import com.zillit.zillitapp.core.database.RealmProvider
 import com.zillit.zillitapp.core.database.entity.ProjectEntity
 import com.zillit.zillitapp.core.logging.ZillitLog
 import com.zillit.zillitapp.core.network.ApiEndpoints
+import com.zillit.zillitapp.core.network.ApiError
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import com.zillit.zillitapp.core.network.ApiResult
@@ -99,7 +100,20 @@ class ProjectRepository @Inject constructor(
         )
 
         return when (result) {
-            is ApiResult.Failure -> result
+            // A device the backend does not know has no projects — that is what the 401
+            // *means* on this route, and v2 reads it the same way (`INVALID_DEVICE` →
+            // empty list → the Start/Join page). Reporting it as an error instead hid the
+            // Create and Join buttons behind "session expired" on every fresh install,
+            // which is the one screen a new user has to get past. The cache is cleared
+            // too: a device the server has forgotten must not keep showing old projects.
+            is ApiResult.Failure -> if (result.error.isUnknownDevice) {
+                ZillitLog.d(TAG, "Device not registered yet — no projects")
+                cache(emptyList())
+                ApiResult.Success(emptyList())
+            } else {
+                result
+            }
+
             is ApiResult.Success -> {
                 val now = System.currentTimeMillis()
                 val entities = result.data.data.mapNotNull { it.toEntity(now) }
@@ -109,6 +123,17 @@ class ProjectRepository @Inject constructor(
             }
         }
     }
+
+    /**
+     * Whether a failure says "this device has never registered".
+     *
+     * [ApiError.InvalidDevice] is the backend's explicit answer. A bare 401 is included
+     * because v2 maps *every* 401 on this route to it, and because v3 has no sign-in for
+     * "session expired" to send anyone to — on the project list the only thing a 401 can
+     * usefully mean is "start by creating or joining a project".
+     */
+    private val ApiError.isUnknownDevice: Boolean
+        get() = this is ApiError.InvalidDevice || this is ApiError.Unauthorized
 
     /**
      * Writes the server's list into Realm as the complete truth.

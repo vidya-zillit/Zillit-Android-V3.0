@@ -18,6 +18,11 @@ import com.zillit.zillitapp.feature.createproject.ui.CreateProjectRoute
 import com.zillit.zillitapp.feature.calendar.ui.form.EventFormEntry
 import com.zillit.zillitapp.feature.calendar.ui.settings.CalendarSettingsRoute
 import com.zillit.zillitapp.feature.calendar.ui.lists.EventListRoute
+import com.zillit.zillitapp.feature.cnc.ui.CncGroupInfoRoute
+import com.zillit.zillitapp.feature.cnc.ui.CncProfileRoute
+import com.zillit.zillitapp.feature.cnc.ui.CncThreadRoute
+import com.zillit.zillitapp.feature.cnc.ui.thread.CncThreadArgs
+import com.zillit.zillitapp.feature.cnc.ui.CreateGroupRoute
 import com.zillit.zillitapp.feature.dashboard.DashboardRoute
 import com.zillit.zillitapp.feature.shareproject.ui.ShareProjectRoute
 import com.zillit.zillitapp.feature.linkeddevice.ui.LinkedDeviceRoute
@@ -35,6 +40,30 @@ import com.zillit.zillitapp.feature.settings.ui.PrivacyPreferencesScreen
 import com.zillit.zillitapp.feature.settings.ui.RecoveryCodeScreen
 import com.zillit.zillitapp.feature.splash.SplashRoute
 import kotlinx.serialization.Serializable
+import com.zillit.zillitapp.feature.email.ui.calendar.EmailCalendarScreen
+import com.zillit.zillitapp.feature.email.ui.EmailSignaturesRoute
+import com.zillit.zillitapp.feature.email.ui.EmailSignatureEditorRoute
+import com.zillit.zillitapp.feature.email.ui.EmailSettingsRoute
+import com.zillit.zillitapp.feature.email.ui.EmailSearchRoute
+import com.zillit.zillitapp.feature.email.ui.EmailRulesRoute
+import com.zillit.zillitapp.feature.email.ui.EmailRuleExecutionsRoute
+import com.zillit.zillitapp.feature.email.ui.EmailRuleEditorRoute
+import com.zillit.zillitapp.feature.email.ui.EmailGroupsRoute
+import com.zillit.zillitapp.feature.email.ui.EmailGroupEditorRoute
+import com.zillit.zillitapp.feature.email.ui.EmailFolderPickerRoute
+import com.zillit.zillitapp.feature.tools.ui.CustomizeToolsRoute
+import com.zillit.zillitapp.feature.tools.ui.ManageToolGroupsRoute
+import com.zillit.zillitapp.feature.email.ui.EmailDetailRoute
+import com.zillit.zillitapp.feature.email.ui.detail.EmailDetailArgs
+import com.zillit.zillitapp.feature.email.ui.EmailContactsRoute
+import com.zillit.zillitapp.feature.email.ui.EmailContactEditorRoute
+import com.zillit.zillitapp.feature.email.ui.EmailComposeRoute
+import com.zillit.zillitapp.feature.email.ui.compose.EmailComposeArgs
+import java.time.ZoneId
+import com.zillit.zillitapp.feature.calendar.ui.CalendarRoute
+import com.zillit.zillitapp.feature.email.ui.EmailReadByRoute
+import com.zillit.zillitapp.feature.email.ui.BccPresetsRoute
+import com.zillit.zillitapp.feature.cnc.ui.CncLibraryRoute
 
 /**
  * Type-safe routes. Navigation Compose resolves these from the `@Serializable` type, so a
@@ -113,6 +142,20 @@ sealed interface Route {
     @Serializable
     data object AppPreferences : Route
 
+    /**
+     * Switching the project's tools on and off. Admin only.
+     *
+     * A destination of its own rather than a sheet on the Tools tab: it is a different list
+     * from a different endpoint, and leaving it has to be able to take the user back to the
+     * tab with the tiles already refreshed.
+     */
+    @Serializable
+    data object CustomizeTools : Route
+
+    /** The sections themselves, and which tool is in which. Admin only. */
+    @Serializable
+    data object ManageToolGroups : Route
+
     /** Invite Users — the project code, shown without the post-creation framing. */
     @Serializable
     data object InviteUsers : Route
@@ -137,6 +180,55 @@ sealed interface Route {
 
     @Serializable
     data object LeaveProject : Route
+
+    /**
+     * One C&C conversation — direct or group.
+     *
+     * A destination rather than a screen swapped inside the C&C tab, so the project bar and
+     * the tab bar are off it, its header is the only bar on the page, and back behaves the
+     * same as it does everywhere else.
+     */
+    @Serializable
+    data class CncThread(val conversationId: String, val isGroup: Boolean) : Route
+
+    /**
+     * Naming a group and picking who is in it — or, with [roomId] set, adding people to one
+     * that already exists.
+     *
+     * One destination for both because it is the same list of people either way. The
+     * argument is read off the back-stack entry by the view model, which is why it can be
+     * optional without a second route.
+     */
+    @Serializable
+    data class CncCreateGroup(val roomId: String = "") : Route
+
+    /** One person's details. */
+    @Serializable
+    data class CncProfile(val userId: String) : Route
+
+    /** One group's details and its members. */
+    @Serializable
+    data class CncGroupInfo(val roomId: String) : Route
+
+    /**
+     * Media, Docs and Links for one conversation, as a destination of its own.
+     *
+     * The thread shows the same gallery as an overlay. This exists because the details
+     * screen offers Media and Files as well, and it is a sibling of the thread rather than
+     * a child of it — popping back to the thread and asking it to open an overlay would
+     * mean one screen reaching into another's state.
+     *
+     * Its arguments are named exactly as [CncThread]'s are on purpose: the thread's view
+     * model reads `conversationId` and `isGroup` off the back-stack entry, so this
+     * destination gets the whole feed, already mapped, with no second derivation of it.
+     */
+    @Serializable
+    data class CncLibrary(
+        val conversationId: String,
+        val isGroup: Boolean,
+        /** `true` opens on Docs, for the Files shortcut. */
+        val documentsFirst: Boolean = false,
+    ) : Route
 }
 
 @Composable
@@ -253,6 +345,8 @@ fun ZillitNavHost(
             val route = entry.toRoute<Route.Dashboard>()
             DashboardRoute(
                 projectName = route.projectName,
+                pickedEmailFolder = entry.folderPickerResult(),
+                onEmailFolderHandled = { entry.clearFolderPickerResult() },
                 onChangeProject = {
                     // Back to the list to switch projects, clearing the dashboard so the
                     // next selection builds a fresh one rather than stacking.
@@ -268,6 +362,49 @@ fun ZillitNavHost(
                     navController.navigate(Route.CalendarEventForm(selectedDateMs = dateMs))
                 },
                 onOpenCalendarSettings = { navController.navigate(Route.CalendarSettings) },
+                // Mail. The list lives in the Email tab; everything it can open is a
+                // destination here, so a message survives the process being killed behind
+                // it and back behaves the same as anywhere else in the app.
+                onOpenEmail = { emailId, folderName, threadId ->
+                    navController.navigate(EmailDetail(emailId, folderName, threadId))
+                },
+                onComposeEmail = { draftId ->
+                    navController.navigate(
+                        if (draftId == null) {
+                            EmailCompose()
+                        } else {
+                            EmailCompose(mode = EmailCompose.MODE_EDIT_DRAFT, draftId = draftId)
+                        },
+                    )
+                },
+                onSearchEmail = { navController.navigate(EmailSearch) },
+                onPickEmailFolder = { source ->
+                    navController.navigate(EmailFolderPicker(source))
+                },
+                onOpenEmailSettings = { navController.navigate(EmailSettings) },
+                onCustomizeTools = { navController.navigate(Route.CustomizeTools) },
+                // Chat & Calling. Everything the tab can open is a destination, so a
+                // conversation is a page rather than a panel inside the dashboard.
+                onOpenConversation = { id, isGroup ->
+                    navController.navigate(Route.CncThread(id, isGroup))
+                },
+                onOpenCncProfile = { navController.navigate(Route.CncProfile(it)) },
+                onCreateCncGroup = { navController.navigate(Route.CncCreateGroup()) },
+                onOpenEmailContacts = { navController.navigate(EmailContacts) },
+                onOpenEmailCalendar = { navController.navigate(EmailCalendar) },
+                onEmailReadBy = { emailId, folderName ->
+                    navController.navigate(EmailReadBy(emailId, folderName))
+                },
+                // The reading pane's reply and add-contact go to the same destinations the
+                // phone's detail page uses, so the composer is one screen however it opened.
+                onEmailReply = { mode, emailId, folderName ->
+                    navController.navigate(
+                        EmailCompose(mode = mode, sourceEmailId = emailId, sourceFolderName = folderName),
+                    )
+                },
+                onEmailAddContact = { address, name ->
+                    navController.navigate(EmailContactEditor(prefillEmail = address, prefillName = name))
+                },
                 onOpenSetting = { destination ->
                     // Three settings rows are not pages of their own: two reuse screens that
                     // already exist elsewhere in the app, and Update App leaves it entirely.
@@ -351,6 +488,270 @@ fun ZillitNavHost(
 
         composable<Route.Help> {
             HelpScreen(onBack = navController::popBackStack)
+        }
+
+        // ── Email ────────────────────────────────────────────────────────────
+        composable<EmailDetail> { entry ->
+            EmailDetailRoute(
+                args = EmailDetailArgs.from(entry.toRoute<EmailDetail>()),
+                onBack = navController::popBackStack,
+                pickedFolder = entry.folderPickerResult(),
+                onFolderHandled = { entry.clearFolderPickerResult() },
+                onReply = { mode, emailId, folderName ->
+                    navController.navigate(
+                        EmailCompose(
+                            mode = mode,
+                            sourceEmailId = emailId,
+                            sourceFolderName = folderName,
+                        ),
+                    )
+                },
+                onPickFolder = { source -> navController.navigate(EmailFolderPicker(source)) },
+                onReadBy = { emailId, folderName ->
+                    navController.navigate(EmailReadBy(emailId, folderName))
+                },
+                onAddContact = { address, name ->
+                    navController.navigate(
+                        EmailContactEditor(prefillEmail = address, prefillName = name),
+                    )
+                },
+            )
+        }
+
+        composable<EmailCompose> { entry ->
+            EmailComposeRoute(
+                args = EmailComposeArgs.from(entry.toRoute<EmailCompose>()),
+                onClose = navController::popBackStack,
+            )
+        }
+
+        composable<EmailSearch> {
+            EmailSearchRoute(
+                onBack = navController::popBackStack,
+                onOpenDetail = { emailId, folderName ->
+                    navController.navigate(EmailDetail(emailId, folderName))
+                },
+            )
+        }
+
+        composable<EmailFolderPicker> { entry ->
+            val route = entry.toRoute<EmailFolderPicker>()
+            EmailFolderPickerRoute(
+                sourceFolder = route.sourceFolderName,
+                // The answer goes to the entry that opened the picker, which is the one
+                // holding the selection. Handing it back through a callback instead would
+                // lose it if the process were killed while the picker was up.
+                onPicked = { folder ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(EmailFolderPicker.RESULT_FOLDER, folder)
+                    navController.popBackStack()
+                },
+                onBack = navController::popBackStack,
+            )
+        }
+
+        // ── Chat & Calling ────────────────────────────────────────────────
+        // The thread takes its arguments rather than reading the back-stack entry, because
+        // the same screen is also the right-hand pane beside the conversation list on a
+        // wide window, where there is no route to read.
+        composable<Route.CncThread> { entry ->
+            val route = entry.toRoute<Route.CncThread>()
+            CncThreadRoute(
+                args = CncThreadArgs(route.conversationId, route.isGroup),
+                onBack = navController::popBackStack,
+                onOpenDetails = { id, isGroup ->
+                    navController.navigate(
+                        if (isGroup) Route.CncGroupInfo(id) else Route.CncProfile(id),
+                    )
+                },
+            )
+        }
+
+        composable<Route.CncCreateGroup> {
+            CreateGroupRoute(onBack = navController::popBackStack)
+        }
+
+        composable<Route.CncLibrary> { entry ->
+            val route = entry.toRoute<Route.CncLibrary>()
+            CncLibraryRoute(
+                documentsFirst = route.documentsFirst,
+                onBack = navController::popBackStack,
+            )
+        }
+
+        composable<Route.CncProfile> { entry ->
+            val route = entry.toRoute<Route.CncProfile>()
+            CncProfileRoute(
+                userId = route.userId,
+                onBack = navController::popBackStack,
+                onOpenLibrary = { documentsFirst ->
+                    navController.navigate(
+                        Route.CncLibrary(
+                            conversationId = route.userId,
+                            isGroup = false,
+                            documentsFirst = documentsFirst,
+                        ),
+                    )
+                },
+                // Messaging from a profile you reached *from* that conversation must go
+                // back to it rather than stack a second copy on top of the first.
+                onMessage = { id ->
+                    navController.navigate(Route.CncThread(id, isGroup = false)) {
+                        popUpTo(Route.CncThread(id, isGroup = false)) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+
+        composable<Route.CncGroupInfo> { entry ->
+            val route = entry.toRoute<Route.CncGroupInfo>()
+            CncGroupInfoRoute(
+                roomId = route.roomId,
+                onBack = navController::popBackStack,
+                onMessage = { id ->
+                    navController.navigate(Route.CncThread(id, isGroup = true)) {
+                        popUpTo(Route.CncThread(id, isGroup = true)) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onMember = { navController.navigate(Route.CncProfile(it)) },
+                onAddMembers = { navController.navigate(Route.CncCreateGroup(route.roomId)) },
+                onOpenLibrary = { documentsFirst ->
+                    navController.navigate(
+                        Route.CncLibrary(
+                            conversationId = route.roomId,
+                            isGroup = true,
+                            documentsFirst = documentsFirst,
+                        ),
+                    )
+                },
+            )
+        }
+
+        composable<Route.CustomizeTools> {
+            CustomizeToolsRoute(
+                onBack = navController::popBackStack,
+                onManageGroups = { navController.navigate(Route.ManageToolGroups) },
+            )
+        }
+
+        composable<Route.ManageToolGroups> {
+            ManageToolGroupsRoute(onBack = navController::popBackStack)
+        }
+
+        composable<EmailSettings> {
+            EmailSettingsRoute(
+                onBack = navController::popBackStack,
+                onSignatures = { navController.navigate(EmailSignatures) },
+                onGroups = { navController.navigate(EmailGroups) },
+                onRules = { navController.navigate(EmailRules) },
+                onBccPresets = { navController.navigate(EmailBccPresets) },
+            )
+        }
+
+        composable<EmailBccPresets> {
+            BccPresetsRoute(onBack = navController::popBackStack)
+        }
+
+        composable<EmailSignatures> {
+            EmailSignaturesRoute(
+                onBack = navController::popBackStack,
+                onEdit = { navController.navigate(EmailSignatureEditor(it)) },
+            )
+        }
+
+        composable<EmailSignatureEditor> { entry ->
+            EmailSignatureEditorRoute(
+                signatureId = entry.toRoute<EmailSignatureEditor>().signatureId,
+                onBack = navController::popBackStack,
+            )
+        }
+
+        composable<EmailGroups> {
+            EmailGroupsRoute(
+                onBack = navController::popBackStack,
+                onEdit = { navController.navigate(EmailGroupEditor(it)) },
+            )
+        }
+
+        composable<EmailGroupEditor> { entry ->
+            EmailGroupEditorRoute(
+                groupId = entry.toRoute<EmailGroupEditor>().groupId,
+                onBack = navController::popBackStack,
+            )
+        }
+
+        composable<EmailContacts> {
+            EmailContactsRoute(
+                onBack = navController::popBackStack,
+                onEdit = { navController.navigate(EmailContactEditor(contactId = it)) },
+                onCompose = { address ->
+                    navController.navigate(EmailCompose(prefillTo = address))
+                },
+            )
+        }
+
+        composable<EmailContactEditor> { entry ->
+            val route = entry.toRoute<EmailContactEditor>()
+            EmailContactEditorRoute(
+                contactId = route.contactId,
+                prefillEmail = route.prefillEmail,
+                prefillName = route.prefillName,
+                onBack = navController::popBackStack,
+            )
+        }
+
+        composable<EmailRules> {
+            EmailRulesRoute(
+                onBack = navController::popBackStack,
+                onEdit = { navController.navigate(EmailRuleEditor(it)) },
+                onHistory = { ruleId, ruleName ->
+                    navController.navigate(EmailRuleExecutions(ruleId, ruleName))
+                },
+            )
+        }
+
+        composable<EmailRuleEditor> { entry ->
+            EmailRuleEditorRoute(
+                ruleId = entry.toRoute<EmailRuleEditor>().ruleId,
+                onBack = navController::popBackStack,
+            )
+        }
+
+        composable<EmailRuleExecutions> { entry ->
+            val route = entry.toRoute<EmailRuleExecutions>()
+            EmailRuleExecutionsRoute(
+                ruleId = route.ruleId,
+                ruleName = route.ruleName,
+                onBack = navController::popBackStack,
+            )
+        }
+
+        composable<EmailReadBy> {
+            EmailReadByRoute(onBack = navController::popBackStack)
+        }
+
+        composable<EmailCalendar> {
+            EmailCalendarScreen(onBack = navController::popBackStack) {
+                // The project calendar, with no unit strip: reached from the email drawer,
+                // where there is no unit context to switch between. v2 drops the same
+                // shared calendar in here and adds nothing email-specific either.
+                CalendarRoute(
+                    units = emptyList(),
+                    selectedUnitId = null,
+                    onUnitSelected = { },
+                    onCreateEvent = { date ->
+                        navController.navigate(
+                            Route.CalendarEventForm(
+                                selectedDateMs = date.atStartOfDay(ZoneId.systemDefault())
+                                    .toInstant().toEpochMilli(),
+                            ),
+                        )
+                    },
+                )
+            }
         }
     }
 }

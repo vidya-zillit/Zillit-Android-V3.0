@@ -63,7 +63,18 @@ class AttachmentDownloader @Inject constructor(
      * Returns immediately when it already is — that is the common path, and it must not
      * cost a coroutine launch or a state update.
      */
-    fun download(remoteKey: String, fileName: String, module: String) {
+    fun download(
+        remoteKey: String,
+        fileName: String,
+        module: String,
+        /**
+         * Where the file lives, when the server named it. Omitting these asks the project's
+         * own bucket, which is wrong for anything stored under a different region — see
+         * [S3Client].
+         */
+        bucket: String? = null,
+        region: String? = null,
+    ) {
         cache.cached(remoteKey, fileName)?.let { file ->
             update(remoteKey, DownloadState.Ready(file))
             return
@@ -87,6 +98,8 @@ class AttachmentDownloader @Inject constructor(
                     destinationPath = target.absolutePath,
                     fileName = fileName,
                     module = module,
+                    bucket = bucket,
+                    region = region,
                 ),
             )
                 .transformWhile { state ->
@@ -132,7 +145,13 @@ class AttachmentDownloader @Inject constructor(
      * @return null if the transfer failed; the caller shares what it did get rather than
      *   failing the whole batch over one file.
      */
-    suspend fun awaitFile(remoteKey: String, fileName: String, module: String): File? {
+    suspend fun awaitFile(
+        remoteKey: String,
+        fileName: String,
+        module: String,
+        bucket: String? = null,
+        region: String? = null,
+    ): File? {
         cache.cached(remoteKey, fileName)?.let { file ->
             update(remoteKey, DownloadState.Ready(file))
             return file
@@ -149,6 +168,8 @@ class AttachmentDownloader @Inject constructor(
                 destinationPath = target.absolutePath,
                 fileName = fileName,
                 module = module,
+                bucket = bucket,
+                region = region,
             ),
         )
             .transformWhile { state ->

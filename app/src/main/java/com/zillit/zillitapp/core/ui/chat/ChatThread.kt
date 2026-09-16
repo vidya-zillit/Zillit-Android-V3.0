@@ -1,6 +1,11 @@
 package com.zillit.zillitapp.core.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import android.Manifest
 import android.content.pm.PackageManager
@@ -79,6 +84,8 @@ import com.zillit.zillitapp.core.ui.chat.model.ChatFeedItem
 import com.zillit.zillitapp.core.ui.chat.model.ChatMessage
 import com.zillit.zillitapp.core.ui.chat.model.ChatUnit
 import kotlinx.coroutines.launch
+import com.zillit.zillitapp.core.ui.chat.model.ChatMention
+import androidx.compose.foundation.layout.heightIn
 
 /**
  * The shared chat surface — feed, composer, and an optional unit strip.
@@ -122,7 +129,19 @@ fun ChatThread(
      * cannot send is worse than not showing one.
      */
     allowsText: Boolean = true,
-    onSend: (String) -> Unit = {},
+    /**
+     * The typed message, and anybody named in it.
+     *
+     * Two arguments rather than one string because the two halves travel differently: the
+     * body goes out with `@<userId>` in it and the names go out beside it, so a client that
+     * has never heard of the person can still render the message.
+     */
+    onSend: (String, List<ChatMention>) -> Unit = { _, _ -> },
+    /**
+     * Who can be named here. Empty turns mentions off, which is right for a one-to-one:
+     * there is one other person and naming them says nothing.
+     */
+    mentionCandidates: List<ChatMention> = emptyList(),
     /**
      * Called before the picker opens. Return false to suppress it — Call Sheet uses this
      * to run its replace-confirmation first and open the picker from there instead.
@@ -145,10 +164,29 @@ fun ChatThread(
     onRetry: (ChatMessage) -> Unit = {},
     /** Fired when the thread is scrolled near the top, to page older messages in. */
     onLoadOlder: () -> Unit = {},
+    /**
+     * Fired when the newest message is on screen.
+     *
+     * What "the user has seen this" actually means: a thread deep enough to scroll opens
+     * above its own bottom, and treating that as read marks messages nobody has looked at.
+     */
+    onReachedBottom: () -> Unit = {},
     /** Parent server id — starts a reply in the composer. */
     onReply: (String) -> Unit = {},
     onLongPress: (ChatMessage) -> Unit = {},
     onOpenMedia: (ChatMessage) -> Unit = {},
+    /** Add or take back an emoji reaction. Null where the surface has none. */
+    onReact: ((ChatMessage, String) -> Unit)? = null,
+    /** Tap on a quotation. Null where replies do not carry one. */
+    onOpenQuoted: ((String) -> Unit)? = null,
+    /**
+     * A message to scroll to and mark. Cleared through [onJumpHandled] once the scroll has
+     * happened, so the same tap does not re-scroll on every recomposition.
+     */
+    jumpToId: String? = null,
+    onJumpHandled: () -> Unit = {},
+    /** Abandon an upload still in flight. */
+    onCancelUpload: ((ChatMessage) -> Unit)? = null,
     onOpenLocation: (ChatMessage.Location) -> Unit = {},
     audio: AudioBubbleState = AudioBubbleState(),
     /** The message being replied to, shown as a quoted bar above the composer. */
@@ -190,12 +228,49 @@ fun ChatThread(
     onSearchClose: () -> Unit = {},
     /** Null hides the history affordance — history has none of its own. */
     onOpenHistory: (() -> Unit)? = null,
+    /**
+     * Two-sided layout — your messages right, theirs left.
+     *
+     * C&C and Budget pass true; a unit chat leaves it false and stays the board it is.
+     */
+    twoSided: Boolean = false,
+    /** Sent/delivered/read ticks on your own messages. See [ChatPostRow]. */
+    showDeliveryReceipts: Boolean = false,
+    /**
+     * Per-post "Read by 11" for a group thread. Return null for the rows that need none.
+     *
+     * Composable because the count is plural-sensitive copy, and resolving it in the
+     * caller's view model would leave it in whatever language the app was in when the
+     * message arrived.
+     */
+    readByLabel: @Composable (ChatFeedItem.Post) -> String? = { null },
+    /**
+     * "Rudra is typing…", already worded, or null when nobody is.
+     *
+     * Sits below the last message inside the scrolling feed rather than pinned above the
+     * composer, so it moves with the conversation instead of covering it.
+     */
+    typingLabel: String? = null,
 ) {
     val listState = rememberLazyListState()
 
-    // Land on the newest post when the thread changes, the way a chat is expected to
-    // open. Scrolling up then stays put because the key does not change again.
-    LaunchedEffect(selectedUnitId, feed.size) {
+    // Land on the newest post when the thread **changes**, the way a chat is expected to
+    // open.
+    //
+    // Keyed on the thread, not on the feed size. Keying on size meant every page of older
+    // messages — which are *prepended* — counted as a change and threw the reader back to
+    // the bottom the moment their page arrived, exactly when they were trying to read
+    // upwards. The id of the newest post is what says "something new arrived at the end";
+    // older pages do not move it.
+    val newestId = feed.lastOrNull()?.let { item ->
+        when (item) {
+            is ChatFeedItem.Post -> item.id
+            is ChatFeedItem.Day -> item.id
+            ChatFeedItem.UnreadDivider -> ChatFeedItem.UnreadDivider.ID
+        }
+    }
+
+    LaunchedEffect(selectedUnitId, newestId) {
         if (feed.isNotEmpty()) listState.scrollToItem(feed.lastIndex)
     }
 
@@ -210,6 +285,16 @@ fun ChatThread(
         val index = feed.indexOfFirst { it is ChatFeedItem.Post && it.id == id }
         if (index >= 0) listState.animateScrollToItem(index)
     }
+
+    // Tapping a quotation goes to the message it quotes — v2's `highLightRepliedBackground`.
+    // The tint is half of it: after the scroll there is nothing else to say which of the
+    // messages now on screen was the one meant.
+    LaunchedEffect(jumpToId) {
+        val id = jumpToId ?: return@LaunchedEffect
+        val index = feed.indexOfFirst { it is ChatFeedItem.Post && it.id == id }
+        if (index >= 0) listState.animateScrollToItem(index)
+    }
+
 
     Column(modifier = modifier.fillMaxSize().background(ZillitTheme.colors.background)) {
         if (search != null) {
@@ -233,6 +318,20 @@ fun ChatThread(
         LaunchedEffect(listState, feed.size) {
             snapshotFlow { listState.firstVisibleItemIndex }
                 .collect { index -> if (index <= PAGE_TRIGGER_INDEX && feed.isNotEmpty()) onLoadOlder() }
+        }
+
+        // Reaching the newest message. A long thread opens part way up, so everything below
+        // stays unread until the user actually scrolls down to it — marking read on open
+        // alone claims they have seen messages they have not.
+        LaunchedEffect(listState, feed.size) {
+            snapshotFlow {
+                listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            }
+                .collect { last ->
+                    if (feed.isNotEmpty() && last != null && last >= feed.lastIndex) {
+                        onReachedBottom()
+                    }
+                }
         }
 
         val pullState = rememberPullToRefreshState()
@@ -275,18 +374,30 @@ fun ChatThread(
                         onReply = onReply,
                         onLongPress = onLongPress,
                         onOpenMedia = onOpenMedia,
+                        onReact = onReact,
+                        onOpenQuoted = onOpenQuoted,
+                        onCancelUpload = onCancelUpload,
                         onOpenLocation = onOpenLocation,
                         audio = audio,
                         selection = selection,
                         onToggleSelection = onToggleSelection,
                         isReadOnly = isReadOnly,
                         searchQuery = search?.query.orEmpty(),
-                        isSearchHit = search?.currentId == item.id,
+                        isSearchHit = search?.currentId == item.id || jumpToId == item.id,
                         onReplyOptions = onReplyOptions?.let { open ->
                             { reply -> open(item.rootServerId, reply) }
                         },
+                        twoSided = twoSided,
+                        showDeliveryReceipts = showDeliveryReceipts,
+                        readByLabel = readByLabel(item),
                     )
                 }
+            }
+
+            // Typing is the last row of the feed, so arriving at the bottom of the thread
+            // and seeing it is the same gesture.
+            typingLabel?.let { label ->
+                item(key = "typing") { TypingRow(label) }
             }
         }
 
@@ -303,10 +414,16 @@ fun ChatThread(
                         null
                     } else {
                         val top = listState.firstVisibleItemIndex.coerceIn(0, feed.lastIndex)
-                        // Walk back to the nearest separator at or above the top row: the
-                        // messages between it and here all belong to that day.
-                        feed.subList(0, top + 1).lastOrNull { it is ChatFeedItem.Day }
-                            as? ChatFeedItem.Day
+                        when {
+                            // The real separator is the top row, already saying what the
+                            // chip would. Pinning a copy over it is what doubled the label
+                            // on every thread that opens on a day boundary.
+                            feed[top] is ChatFeedItem.Day -> null
+                            // Otherwise walk back to the nearest separator at or above the
+                            // top row: the messages between it and here are all that day.
+                            else -> feed.subList(0, top + 1)
+                                .lastOrNull { it is ChatFeedItem.Day } as? ChatFeedItem.Day
+                        }
                     }
                 }
             }
@@ -389,6 +506,7 @@ fun ChatThread(
         } else if (postingAllowed) {
             ChatComposer(
                 onSend = onSend,
+                mentionCandidates = mentionCandidates,
                 onSearchOpen = onSearchOpen,
                 savedDraft = draft,
                 onDraftChanged = onDraftChanged,
@@ -418,7 +536,8 @@ fun ChatThread(
 
 @Composable
 private fun ChatComposer(
-    onSend: (String) -> Unit,
+    onSend: (String, List<ChatMention>) -> Unit,
+    mentionCandidates: List<ChatMention>,
     onSearchOpen: () -> Unit,
     savedDraft: String?,
     onDraftChanged: (String) -> Unit,
@@ -442,6 +561,33 @@ private fun ChatComposer(
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
     var overLimit by remember { mutableStateOf(false) }
+
+    /**
+     * People picked from the suggestion list while writing this message.
+     *
+     * Held beside the text rather than encoded into it: the composer shows `@Name`, which is
+     * what the writer needs to read back, while the wire needs `@<userId>`. Keeping both
+     * means the swap happens once, at send, instead of the field showing ids.
+     */
+    var picked by remember { mutableStateOf(listOf<ChatMention>()) }
+
+    // The word being typed after an `@`, or null when none is. Only the tail is considered:
+    // a mention is written at the caret and the caret is at the end while typing one.
+    val mentionQuery = remember(draft) {
+        val at = draft.lastIndexOf(MENTION_SYMBOL)
+        when {
+            mentionCandidates.isEmpty() || at < 0 -> null
+            at > 0 && !draft[at - 1].isWhitespace() -> null
+            else -> draft.substring(at + 1).takeIf { q -> q.none(Char::isWhitespace) }
+        }
+    }
+
+    val suggestions = remember(mentionQuery, mentionCandidates) {
+        val query = mentionQuery ?: return@remember emptyList()
+        mentionCandidates
+            .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+            .take(MENTION_SUGGESTION_LIMIT)
+    }
     var emojiOpen by rememberSaveable { mutableStateOf(false) }
 
     // Restores what was typed in this thread. Only while not editing: an edit's text is
@@ -472,6 +618,39 @@ private fun ChatComposer(
 
     Column(modifier = Modifier.fillMaxWidth().background(ZillitTheme.colors.surface)) {
         HorizontalDivider(color = ZillitTheme.colors.divider)
+
+        // Above the field, so the list does not cover what is being typed. Capped rather
+        // than scrollable: a crew of two hundred would otherwise put a full-height list over
+        // the thread the moment an `@` is typed.
+        if (suggestions.isNotEmpty()) {
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = MENTION_LIST_MAX_HEIGHT)) {
+                items(suggestions, key = { it.userId }) { candidate ->
+                    Text(
+                        text = candidate.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ZillitTheme.colors.textPrimary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                // Replace the half-typed query, not the whole word: the
+                                // text before the `@` is the message and must survive.
+                                val at = draft.lastIndexOf(MENTION_SYMBOL)
+                                if (at >= 0) {
+                                    draft = draft.take(at) + "@" + candidate.name + " "
+                                    picked = picked.filterNot { it.userId == candidate.userId } +
+                                        candidate
+                                    onDraftChanged(draft)
+                                }
+                            }
+                            .padding(
+                                horizontal = ZillitTheme.spacing.lg,
+                                vertical = ZillitTheme.spacing.sm,
+                            ),
+                    )
+                    HorizontalDivider(color = ZillitTheme.colors.divider, thickness = 0.5.dp)
+                }
+            }
+        }
 
         // Replying uses the main composer rather than a box inside the bubble: a reply
         // often wants an attachment or an emoji, and duplicating those controls per
@@ -636,7 +815,18 @@ private fun ChatComposer(
                             .size(40.dp)
                             .background(ZillitTheme.colors.brand, CircleShape)
                             .clickable {
-                                if (isEditing) onSaveEdit(draft) else onSend(draft)
+                                if (isEditing) {
+                                    onSaveEdit(draft)
+                                } else {
+                                    // Only the people actually still written in the message:
+                                    // a name typed and then deleted must not be announced.
+                                    val used = picked.filter { draft.contains("@${'$'}{it.name}") }
+                                    val wire = used.fold(draft) { text, mention ->
+                                        text.replace("@${'$'}{mention.name}", "@${'$'}{mention.userId}")
+                                    }
+                                    onSend(wire, used)
+                                    picked = emptyList()
+                                }
                                 draft = ""
                                 overLimit = false
                             },
@@ -952,6 +1142,13 @@ private fun EditPreviewBar(onCancel: () -> Unit) {
 /** v2's `Constants.TEXT_LIMIT`. */
 private const val MESSAGE_CHAR_LIMIT = 2000
 
+/** v2's `mentionDetectionSymbol`. */
+private const val MENTION_SYMBOL = '@'
+
+/** Enough to choose from without covering the thread. */
+private const val MENTION_SUGGESTION_LIMIT = 6
+private val MENTION_LIST_MAX_HEIGHT = 220.dp
+
 /** Shown when a unit has no messages yet. Copy is v2's. */
 @Composable
 private fun EmptyThread(modifier: Modifier = Modifier) {
@@ -970,6 +1167,54 @@ private fun EmptyThread(modifier: Modifier = Modifier) {
             text = stringResource(R.string.chat_empty_title),
             style = MaterialTheme.typography.bodyMedium,
             color = ZillitTheme.colors.textSecondary,
+        )
+    }
+}
+
+/**
+ * "Rudra is typing…", with the three dots that say it is live.
+ *
+ * The dots are animated rather than static because the line's whole job is to show that
+ * something is happening right now; a still "typing…" is indistinguishable from a stale
+ * one left behind by a dropped socket.
+ */
+@Composable
+private fun TypingRow(label: String) {
+    val transition = rememberInfiniteTransition(label = "typing")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = ZillitTheme.spacing.md,
+                vertical = ZillitTheme.spacing.xs,
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.xs),
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(600, delayMillis = index * 160),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot$index",
+            )
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(ZillitTheme.colors.brand.copy(alpha = alpha)),
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = ZillitTheme.colors.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

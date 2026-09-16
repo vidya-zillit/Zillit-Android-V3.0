@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -86,15 +88,25 @@ class MainActivity : ComponentActivity() {
                 ZillitTheme(themeMode = themeMode, fontSize = chatFontSize) {
                     // Banner sits above the nav host, so it spans every screen in every
                     // module and no feature has to remember to add it.
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        // Inset only at the top: the banner sits under the status bar,
-                        // and the nav host below handles its own insets.
-                        ConnectivityBanner(
-                            isOnline = isOnline,
-                            modifier = Modifier.windowInsetsPadding(
-                                WindowInsets.safeDrawing.only(WindowInsetsSides.Top),
+                    //
+                    // The top inset is applied **once, here**, which also consumes it for
+                    // everything below. Insetting the banner and then letting each screen's
+                    // top bar inset itself again opened a gap the height of the status bar
+                    // between the two whenever the banner was showing.
+                    //
+                    // `systemBars ∪ displayCutout`, matching what [ZillitTopBar] asks for,
+                    // so the consumption lines up. Deliberately not `safeDrawing`: that
+                    // includes the IME, whose value animates with the keyboard.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(
+                                WindowInsets.systemBars
+                                    .union(WindowInsets.displayCutout)
+                                    .only(WindowInsetsSides.Top),
                             ),
-                        )
+                    ) {
+                        ConnectivityBanner(isOnline = isOnline)
                         ZillitNavHost()
                     }
                 }

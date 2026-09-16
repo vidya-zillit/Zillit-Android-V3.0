@@ -1,5 +1,6 @@
 package com.zillit.zillitapp.core.session
 
+import com.zillit.zillitapp.core.directory.MailboxInfo
 import com.zillit.zillitapp.core.directory.ProjectUser
 import com.zillit.zillitapp.core.logging.ZillitLog
 import com.zillit.zillitapp.core.preferences.AppPreferences
@@ -69,6 +70,10 @@ class CurrentUserStore @Inject constructor(
             isAdmin = user.isAdmin,
             isOwner = user.isOwner,
             status = user.status,
+            mailboxAddress = user.mailbox?.address,
+            mailbox = user.mailbox,
+            conversationView = user.mailbox?.conversationView ?: false,
+            bccPresets = user.bccPresets,
         )
         _profile.value = value
         scope.launch {
@@ -113,6 +118,19 @@ data class CurrentUser(
     val isAdmin: Boolean = false,
     val isOwner: Boolean = false,
     val status: String? = null,
+    /** The user's own mailbox address, for the email module. Null when none is provisioned. */
+    val mailboxAddress: String? = null,
+    /**
+     * The server settings an external mail client needs.
+     *
+     * Carried here rather than re-fetched: the credentials sheet shows them the moment it
+     * opens, and the reveal endpoint returns only the password. Nothing secret is in here —
+     * the password is never part of this record.
+     */
+    val mailbox: MailboxInfo? = null,
+    val conversationView: Boolean = false,
+    /** BCC presets for the personal mailbox. The shared one keeps its own. */
+    val bccPresets: List<String> = emptyList(),
 ) {
     val displayName: String get() = fullName.ifBlank { "$firstName $lastName".trim() }
 

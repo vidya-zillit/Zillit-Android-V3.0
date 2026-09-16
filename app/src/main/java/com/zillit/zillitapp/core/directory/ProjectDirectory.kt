@@ -11,6 +11,7 @@ import com.zillit.zillitapp.core.network.ApiResult
 import com.zillit.zillitapp.core.network.ModuleData
 import com.zillit.zillitapp.core.network.ZillitApi
 import com.zillit.zillitapp.core.session.SessionStore
+import com.zillit.zillitapp.core.storage.MediaLocations
 import io.realm.kotlin.UpdatePolicy
 import io.realm.kotlin.ext.query
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,7 @@ class ProjectDirectory @Inject constructor(
     private val api: ZillitApi,
     private val realmProvider: RealmProvider,
     private val session: SessionStore,
+    private val mediaLocations: MediaLocations,
 ) {
 
     private val realm get() = realmProvider.realm
@@ -54,6 +56,19 @@ class ProjectDirectory @Inject constructor(
      * [ExternalUserRepository] instead. Without the filter a client would appear in the
      * crew list.
      */
+    /**
+     * The project's people right now, without subscribing.
+     *
+     * For callers that fold the directory into something else and re-run when it changes,
+     * rather than rendering it — collecting a flow there would mean holding a subscription
+     * open for a one-off merge.
+     */
+    fun usersOnce(projectId: String): List<ProjectUser> =
+        realm.query<ProjectUserEntity>(
+            "projectId == $0 AND isExternalUser == false",
+            projectId,
+        ).find().map { it.toDomain() }
+
     fun observeUsers(projectId: String): Flow<List<ProjectUser>> =
         realm.query<ProjectUserEntity>(
             "projectId == $0 AND isExternalUser == false",
@@ -136,6 +151,32 @@ class ProjectDirectory @Inject constructor(
     fun findUser(userId: String, projectId: String? = null): ProjectUser? {
         val scope = projectId ?: session.activeProject.value?.projectId ?: return null
         return realm.query<ProjectUserEntity>("id == $0", ProjectUserEntity.key(scope, userId))
+            .first()
+            .find()
+            ?.toDomain()
+    }
+
+    /**
+     * Finds someone by their email address.
+     *
+     * The mail module's lookup: it knows correspondents by address, not by user id, and
+     * needs to answer "is this one of us" three times over — to put a colleague's photo on
+     * a message, to rank them above a saved contact in the composer's autocomplete, and to
+     * leave them out of "add to contacts".
+     *
+     * Case-insensitive, because an address is, and cache-only for the same reason as
+     * [findUser] — a miss means they are genuinely not on this project.
+     */
+    fun findByEmail(email: String, projectId: String? = null): ProjectUser? {
+        val address = email.trim()
+        if (address.isEmpty()) return null
+
+        val scope = projectId ?: session.activeProject.value?.projectId ?: return null
+
+        return realm.query<ProjectUserEntity>(
+            "projectId == $0 AND email ==[c] $1",
+            scope, address,
+        )
             .first()
             .find()
             ?.toDomain()
@@ -308,12 +349,23 @@ class ProjectDirectory @Inject constructor(
                         this.countryCode = dto.countryCode
                         this.profilePictureUrl = dto.profilePicture?.media
                         this.profileThumbnailKey = dto.profilePicture?.thumbnail
+                        this.showsLocation = dto.showLocation ?: false
+                        this.lastLatitude = dto.lastLocation?.lat ?: 0.0
+                        this.lastLongitude = dto.lastLocation?.long ?: 0.0
+                        mediaLocations.remember(
+                            media = dto.profilePicture?.media,
+                            thumbnail = dto.profilePicture?.thumbnail,
+                            bucket = dto.profilePicture?.bucket,
+                            region = dto.profilePicture?.region,
+                        )
                         this.isAdmin = dto.isAdmin ?: false
                         this.isOwner = dto.isOwner ?: false
                         this.enabled = dto.enabled ?: true
                         this.status = dto.status
                         this.keepNamePrivate = dto.keepNamePrivate ?: false
                         this.isExternalUser = dto.isExternalUser ?: false
+                        this.deviceId = dto.deviceId.orEmpty()
+                        this.sortingActivity = dto.sortingActivity ?: 0
                         this.updated = dto.updated ?: 0
                         this.rawJson = json.encodeToString(ProjectUserDto.serializer(), dto)
                     },
@@ -365,13 +417,24 @@ class ProjectDirectory @Inject constructor(
                         this.id = ProjectToolEntity.key(projectId, dto.identifier.orEmpty())
                         this.projectId = projectId
                         this.identifier = dto.identifier.orEmpty()
-                        this.toolId = dto.toolId ?: dto.id
-                        this.toolName = dto.toolName ?: dto.name.orEmpty()
+                        // `unit_id` is this endpoint's id; the others are the same
+                        // shape served elsewhere.
+                        this.toolId = dto.unitId ?: dto.toolId ?: dto.id
+                        this.toolName = dto.unitName
+                            ?: dto.toolName
+                            ?: dto.name.orEmpty()
                         this.enabled = dto.enabled ?: true
                         this.viewAccess = dto.viewAccess ?: true
                         this.postingAccess = dto.postingAccess ?: true
                         this.downloadAccess = dto.downloadAccess ?: true
                         this.adminAccess = dto.adminAccess ?: false
+                        this.groupIdentifier = dto.groupIdentifier.orEmpty()
+                        this.isTool = dto.isTool ?: false
+                        this.isHome = dto.isHome ?: false
+                        this.hasSubUnits = dto.hasSubUnits ?: false
+                        this.viewingUpdatable = dto.viewingUpdatable ?: false
+                        this.postingUpdatable = dto.postingUpdatable ?: false
+                        this.downloadUpdatable = dto.downloadUpdatable ?: false
                         this.sortOrder = index
                         this.rawJson = json.encodeToString(ToolDto.serializer(), dto)
                     },

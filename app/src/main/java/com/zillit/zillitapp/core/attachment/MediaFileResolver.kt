@@ -135,10 +135,7 @@ class MediaFileResolver @Inject constructor(
         val bitmap: Bitmap? = when {
             mimeType.startsWith("image/") -> decodeScaled(source)
 
-            mimeType.startsWith("video/") -> MediaMetadataRetriever().use { retriever ->
-                retriever.setDataSource(source.absolutePath)
-                retriever.getFrameAtTime(0L)
-            }
+            mimeType.startsWith("video/") -> withRetriever(source) { it.getFrameAtTime(0L) }
 
             mimeType == "application/pdf" -> renderPdfFirstPage(source)
 
@@ -198,8 +195,7 @@ class MediaFileResolver @Inject constructor(
     }.getOrNull()
 
     private fun readMediaMetadata(file: File): MediaMetadata = runCatching {
-        MediaMetadataRetriever().use { retriever ->
-            retriever.setDataSource(file.absolutePath)
+        withRetriever(file) { retriever ->
             MediaMetadata(
                 durationMs = retriever
                     .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
@@ -212,7 +208,27 @@ class MediaFileResolver @Inject constructor(
                     ?.toIntOrNull() ?: 0,
             )
         }
-    }.getOrDefault(MediaMetadata())
+    }.getOrNull() ?: MediaMetadata()
+
+    /**
+     * Opens a retriever on [file], hands it over, and always releases it.
+     *
+     * Written out rather than using `use`, which needs `AutoCloseable` — an interface
+     * `MediaMetadataRetriever` only implements from API 29. Below that the call fails at
+     * runtime, and because both callers wrap themselves in `runCatching` the failure was
+     * invisible: on Android 9 every video arrived with no thumbnail, no duration and no
+     * dimensions, and nothing said why. `release()` exists on every version this app
+     * supports.
+     */
+    private fun <T> withRetriever(file: File, block: (MediaMetadataRetriever) -> T): T? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            block(retriever)
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
 
     private fun guessMimeType(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
         "jpg", "jpeg" -> "image/jpeg"

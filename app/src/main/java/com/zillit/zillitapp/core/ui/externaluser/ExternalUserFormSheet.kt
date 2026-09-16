@@ -31,6 +31,7 @@ import com.zillit.zillitapp.core.directory.ExternalUser
 import com.zillit.zillitapp.core.directory.ProjectDepartment
 import com.zillit.zillitapp.core.directory.ProjectDesignation
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.preset.CountryCode
 import com.zillit.zillitapp.core.ui.components.DropdownField
@@ -81,7 +82,8 @@ fun ExternalUserFormSheet(
     saving: Boolean = false,
 ) {
     val context = LocalContext.current
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
 
     var fullName by rememberSaveable { mutableStateOf(existing?.fullName ?: initialName) }
     var email by rememberSaveable { mutableStateOf(existing?.email ?: initialEmail) }
@@ -164,13 +166,13 @@ fun ExternalUserFormSheet(
                 label = stringResource(R.string.user_type),
                 value = when (type) {
                     ExternalUserType.OTHERS -> stringResource(R.string.others)
-                    else -> labels.resolveLabel(type.key)
+                    else -> labels.resolve(type.key)
                 },
                 options = ExternalUserType.entries,
                 optionLabel = {
                     when (it) {
                         ExternalUserType.OTHERS -> stringResource(R.string.others)
-                        else -> labels.resolveLabel(it.key)
+                        else -> labels.resolve(it.key)
                     }
                 },
                 onPick = {
@@ -195,11 +197,11 @@ fun ExternalUserFormSheet(
                 DropdownField(
                     label = stringResource(R.string.select_department),
                     value = departments.firstOrNull { it.departmentId == departmentId }
-                        ?.let { labels.resolveLabel(it.name) }
+                        ?.let { labels.resolve(it.name) }
                         .orEmpty(),
                     placeholder = stringResource(R.string.select_department),
                     options = departments,
-                    optionLabel = { labels.resolveLabel(it.name) },
+                    optionLabel = { labels.resolve(it.name) },
                     onPick = {
                         departmentId = it.departmentId
                         // The old designation belonged to the old department.
@@ -210,11 +212,11 @@ fun ExternalUserFormSheet(
                 DropdownField(
                     label = stringResource(R.string.select_designation),
                     value = designations.firstOrNull { it.designationId == designationId }
-                        ?.let { labels.resolveLabel(it.name) }
+                        ?.let { labels.resolve(it.name) }
                         .orEmpty(),
                     placeholder = stringResource(R.string.select_designation),
                     options = designations,
-                    optionLabel = { labels.resolveLabel(it.name) },
+                    optionLabel = { labels.resolve(it.name) },
                     onPick = { designationId = it.designationId },
                     enabled = departmentId.isNotBlank(),
                 )

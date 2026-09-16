@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import androidx.compose.ui.text.input.VisualTransformation
 
 /*
  * The form vocabulary, shared by every form in the app.
@@ -138,12 +140,14 @@ fun FieldLabel(text: String, modifier: Modifier = Modifier) {
 fun FieldBox(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    /** Overrides the resting border — used to redden a field that failed validation. */
+    borderColor: Color? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(FIELD_RADIUS),
         color = ZillitTheme.colors.surface,
-        border = BorderStroke(1.dp, ZillitTheme.colors.border),
+        border = BorderStroke(1.dp, borderColor ?: ZillitTheme.colors.border),
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
@@ -219,6 +223,22 @@ fun FormTextField(
     minLines: Int = 1,
     enabled: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    /**
+     * An inline validation message, shown under the field and reddening its border.
+     *
+     * Inline rather than a toast, because a form with nine possible failures — the rules
+     * editor has exactly that — needs to say *which field* is wrong, and a toast that has
+     * already faded cannot.
+     */
+    errorText: String? = null,
+    /**
+     * Masking, for a password.
+     *
+     * Needed because the mailbox password is typed into an ordinary form and must not be
+     * readable over a shoulder — without it the only alternative is a second, near-identical
+     * field component.
+     */
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.xs)) {
         label?.let { FieldLabel(it) }
@@ -229,6 +249,7 @@ fun FormTextField(
             singleLine = singleLine,
             enabled = enabled,
             keyboardOptions = keyboardOptions,
+            visualTransformation = visualTransformation,
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 color = if (enabled) {
                     ZillitTheme.colors.textPrimary
@@ -239,7 +260,7 @@ fun FormTextField(
             cursorBrush = SolidColor(ZillitTheme.colors.brand),
             modifier = Modifier.fillMaxWidth(),
             decorationBox = { field ->
-                FieldBox {
+                FieldBox(borderColor = if (errorText != null) ZillitTheme.colors.danger else null) {
                     Box(modifier = Modifier.weight(1f)) {
                         if (value.isEmpty()) {
                             Text(
@@ -259,6 +280,14 @@ fun FormTextField(
                 }
             },
         )
+
+        if (errorText != null) {
+            Text(
+                text = errorText,
+                style = MaterialTheme.typography.labelSmall,
+                color = ZillitTheme.colors.danger,
+            )
+        }
     }
 }
 

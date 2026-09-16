@@ -1,29 +1,21 @@
 package com.zillit.zillitapp.feature.settings.ui
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Laptop
 import androidx.compose.material.icons.outlined.PersonAdd
@@ -32,7 +24,6 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,11 +47,14 @@ import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.directory.ProjectUser
 import com.zillit.zillitapp.core.labels.asLabel
 import com.zillit.zillitapp.core.help.HelpLinksFor
-import com.zillit.zillitapp.core.ui.components.CountBadge
 import com.zillit.zillitapp.core.ui.components.InfoDialog
 import com.zillit.zillitapp.core.ui.components.UserAvatar
 import com.zillit.zillitapp.core.ui.components.ZillitConfirmDialog
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import com.zillit.zillitapp.core.ui.components.SettingsEmphasis
+import com.zillit.zillitapp.core.ui.components.SettingsGroup
+import com.zillit.zillitapp.core.ui.components.SettingsNavRow
+import com.zillit.zillitapp.core.ui.components.SettingsRowDivider
 
 /**
  * The settings landing page.
@@ -104,7 +98,7 @@ fun SettingsScreen(
 
         SettingsGroup {
             ordered.forEachIndexed { index, (row, title) ->
-                if (index > 0) RowDivider()
+                if (index > 0) SettingsRowDivider()
                 SettingsRowView(
                     row = row,
                     title = title,
@@ -116,7 +110,7 @@ fun SettingsScreen(
 
         SettingsGroup {
             pinned.forEachIndexed { index, row ->
-                if (index > 0) RowDivider()
+                if (index > 0) SettingsRowDivider()
                 SettingsRowView(
                     row = row,
                     title = stringResource(row.titleRes),
@@ -217,106 +211,8 @@ private fun ProfileHeader(user: ProjectUser?, onEdit: () -> Unit) {
     }
 }
 
-/** A card of rows. Grouping is what separates "settings" from "leaving the project". */
-@Composable
-private fun SettingsGroup(content: @Composable () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = ZillitTheme.colors.surface,
-        border = BorderStroke(1.dp, ZillitTheme.colors.border),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column { content() }
-    }
-}
 
-@Composable
-private fun RowDivider() {
-    HorizontalDivider(
-        color = ZillitTheme.colors.divider,
-        modifier = Modifier.padding(start = 64.dp),
-    )
-}
 
-@Composable
-private fun SettingsRowView(
-    row: SettingsRow,
-    title: String,
-    onClick: () -> Unit,
-    onInfo: () -> Unit,
-) {
-    val tint = when (row.emphasis) {
-        SettingsRow.RowEmphasis.ADMIN -> ZillitTheme.colors.accent
-        SettingsRow.RowEmphasis.DANGER -> ZillitTheme.colors.danger
-        SettingsRow.RowEmphasis.NORMAL -> ZillitTheme.colors.brand
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = ZillitTheme.spacing.md, vertical = ZillitTheme.spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.md),
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(36.dp)
-                .background(tint.copy(alpha = 0.12f), CircleShape),
-        ) {
-            Icon(
-                imageVector = row.destination.icon(),
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = when (row.emphasis) {
-                SettingsRow.RowEmphasis.NORMAL -> FontWeight.Normal
-                else -> FontWeight.SemiBold
-            },
-            color = when (row.emphasis) {
-                SettingsRow.RowEmphasis.NORMAL -> ZillitTheme.colors.textPrimary
-                else -> tint
-            },
-            modifier = Modifier.weight(1f),
-        )
-
-        if (row.showDot) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(ZillitTheme.colors.danger, CircleShape),
-            )
-            Spacer(Modifier.size(ZillitTheme.spacing.xs))
-        }
-
-        CountBadge(count = row.badgeCount)
-
-        if (row.infoRes != null) {
-            IconButton(onClick = onInfo, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = title,
-                    tint = ZillitTheme.colors.textTertiary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        }
-
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-            contentDescription = null,
-            tint = ZillitTheme.colors.textTertiary,
-            modifier = Modifier.size(20.dp),
-        )
-    }
-}
 
 /** One icon per destination, so a row is recognisable before it is read. */
 private fun SettingsDestination.icon(): ImageVector = when (this) {
@@ -332,4 +228,33 @@ private fun SettingsDestination.icon(): ImageVector = when (this) {
     SettingsDestination.CATERING_SETTINGS -> Icons.Outlined.Restaurant
     SettingsDestination.ADMIN_SETTINGS -> Icons.Outlined.AdminPanelSettings
     SettingsDestination.LEAVE_PROJECT -> Icons.AutoMirrored.Outlined.Logout
+}
+
+/**
+ * A project-settings row, mapped onto the shared [SettingsNavRow].
+ *
+ * The mapping is all that is left of what used to be a 70-line private composable: the
+ * emphasis, the attention dot, the badge and the ⓘ are the shared row's now, because the
+ * email settings screen needed every one of them too.
+ */
+@Composable
+private fun SettingsRowView(
+    row: SettingsRow,
+    title: String,
+    onClick: () -> Unit,
+    onInfo: () -> Unit,
+) {
+    SettingsNavRow(
+        title = title,
+        onClick = onClick,
+        icon = row.destination.icon(),
+        emphasis = when (row.emphasis) {
+            SettingsRow.RowEmphasis.ADMIN -> SettingsEmphasis.ADMIN
+            SettingsRow.RowEmphasis.DANGER -> SettingsEmphasis.DANGER
+            SettingsRow.RowEmphasis.NORMAL -> SettingsEmphasis.NORMAL
+        },
+        badgeCount = row.badgeCount,
+        showDot = row.showDot,
+        onInfo = onInfo.takeIf { row.infoRes != null },
+    )
 }

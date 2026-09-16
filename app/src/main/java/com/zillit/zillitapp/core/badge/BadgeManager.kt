@@ -57,6 +57,31 @@ class BadgeManager @Inject constructor(
             }
             .distinctUntilChanged()
 
+    /**
+     * Live unread under [prefix], split by one component of the **level path**.
+     *
+     * [observeGrouped] can only split by a named column, and some badge paths carry the
+     * thing you need to group by further down. Email is the case that forced this: its rows
+     * are `folder → uid → messageId → mailbox address`, so "how many unread in each
+     * mailbox" is a grouping on level 3 and cannot be expressed as a prefix.
+     *
+     * @param levelIndex zero-based. Rows with no component at that depth are skipped.
+     */
+    fun observeLevelCounts(
+        prefix: BadgeKey,
+        levelIndex: Int,
+        excludeTool: String? = null,
+    ): Flow<Map<String, Int>> =
+        realm.queryUnder(prefix, excludeTool)
+            .asFlow()
+            .map { change ->
+                change.list
+                    .groupBy { row -> row.levelAt(levelIndex) }
+                    .filterKeys { it.isNotEmpty() }
+                    .mapValues { (_, rows) -> rows.resolveCount() }
+            }
+            .distinctUntilChanged()
+
     /** Unread under [prefix] right now, without observing. */
     fun countUnder(prefix: BadgeKey, excludeTool: String? = null): Int =
         realm.queryUnder(prefix, excludeTool).find().resolveCount()
@@ -209,3 +234,12 @@ private fun io.realm.kotlin.TypedRealm.queryUnder(
     if (predicates.isEmpty()) return query()
     return query(predicates.joinToString(" AND "), *args.toTypedArray())
 }
+
+/**
+ * One segment of a row's level path, or empty when it has no such depth.
+ *
+ * The path is stored joined with a trailing separator (see [BadgeKey.levelPath]), so the
+ * split leaves an empty final element that has to be dropped.
+ */
+private fun BadgeEntity.levelAt(index: Int): String =
+    levelPath.split(BadgeKey.SEPARATOR).filter { it.isNotEmpty() }.getOrElse(index) { "" }

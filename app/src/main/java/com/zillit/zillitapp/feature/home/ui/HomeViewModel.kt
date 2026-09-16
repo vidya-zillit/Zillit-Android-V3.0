@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.attachment.AttachmentOption
 import com.zillit.zillitapp.core.attachment.AttachmentResult
+import com.zillit.zillitapp.core.storage.PendingLocation
 import com.zillit.zillitapp.core.attachment.PickedMedia
 import com.zillit.zillitapp.core.attachment.PlaybackState
 import com.zillit.zillitapp.core.attachment.RecordingState
@@ -60,6 +61,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
+import com.zillit.zillitapp.core.ui.chat.chatLibraryMessages
+import com.zillit.zillitapp.core.ui.chat.viewableMedia
+import com.zillit.zillitapp.core.ui.chat.model.ChatMention
+import com.zillit.zillitapp.core.ui.chat.editableBody
+import com.zillit.zillitapp.core.ui.chat.attachmentKey
+import com.zillit.zillitapp.core.ui.chat.SaveRequest
+import com.zillit.zillitapp.core.ui.chat.mimeTypeGuess
 
 /**
  * Home: the unit strip and the selected unit's thread, both from Realm.
@@ -459,43 +467,7 @@ class HomeViewModel @Inject constructor(
         this > 0 && (System.currentTimeMillis() - this) < EDIT_WINDOW_MS
 
     /** Every media message in the unit, so the viewer can page rather than show one. */
-    fun viewableMedia(): List<ViewableMedia> =
-        feed.value
-            .filterIsInstance<ChatFeedItem.Post>()
-            .mapNotNull { post ->
-                val message = post.root
-                if (!message.hasOpenableMedia) return@mapNotNull null
-
-                ViewableMedia(
-                    id = message.id,
-                    remoteKey = when (message) {
-                        is ChatMessage.Image -> message.remoteKey
-                        is ChatMessage.Video -> message.remoteKey
-                        is ChatMessage.Document -> message.remoteKey
-                        else -> null
-                    },
-                    thumbnailKey = when (message) {
-                        is ChatMessage.Image -> message.thumbnail
-                        is ChatMessage.Video -> message.thumbnail
-                        is ChatMessage.Document -> message.thumbnail
-                        else -> null
-                    },
-                    localPath = when (message) {
-                        is ChatMessage.Image -> message.localPath
-                        is ChatMessage.Video -> message.localPath
-                        is ChatMessage.Document -> message.localPath
-                        else -> null
-                    },
-                    fileName = (message as? ChatMessage.Document)?.fileName
-                        ?: message.id,
-                    caption = (message as? ChatMessage.Image)?.caption,
-                    // Name only — `displayName` appends the designation, which is a raw
-                    // server label key here with no composable in scope to resolve it.
-                    authorName = message.author.name,
-                    timestamp = message.timestamp,
-                    isImage = message is ChatMessage.Image,
-                )
-            }
+    fun viewableMedia(): List<ViewableMedia> = feed.value.viewableMedia()
 
     /**
      * Actions that reach the server, and are refused offline.
@@ -715,9 +687,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Every message in the open thread, roots and batch members alike. */
-    fun libraryMessages(): List<ChatMessage> = feed.value
-        .filterIsInstance<ChatFeedItem.Post>()
-        .flatMap { listOf(it.root) + it.batch }
+    fun libraryMessages(): List<ChatMessage> = feed.value.chatLibraryMessages()
 
     // -- image reply ----------------------------------------------------------
 
@@ -868,12 +838,6 @@ class HomeViewModel @Inject constructor(
         ?.rootServerId
 
     /** The text an edit starts from — a caption for media, the body for text. */
-    private fun ChatMessage.editableBody(): String = when (this) {
-        is ChatMessage.Text -> body
-        is ChatMessage.Image -> caption.orEmpty()
-        else -> ""
-    }
-
     // -- read by user ---------------------------------------------------------
 
     private val _readByRequest = MutableStateFlow<ReadByRequest?>(null)
@@ -1047,6 +1011,9 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Pulls the file into the cache; the viewer and any external app read it from there. */
+    private val _saveRequests = MutableSharedFlow<SaveRequest>(extraBufferCapacity = 1)
+    val saveRequests: SharedFlow<SaveRequest> = _saveRequests
+
     private fun saveToDevice(message: ChatMessage) {
         val key = message.attachmentKey() ?: return
         val name = (message as? ChatMessage.Document)?.fileName ?: key.substringAfterLast('/')
@@ -1054,7 +1021,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             // A Call Sheet PDF is saved in its watermarked form, never the raw file.
             val effectiveKey = watermarkedKeyIfCallSheet(message) ?: key
-            downloader.download(effectiveKey, name, ChatModule.HOME.key)
+            // Into the app's own directory first, then out to the device's. The second half
+            // is what makes the file findable in Files or the gallery; without it Save only
+            // ever populated a cache the person cannot browse.
+            val file = downloader.awaitFile(effectiveKey, name, ChatModule.HOME.key) ?: return@launch
+            _saveRequests.emit(
+                SaveRequest(file = file, fileName = name, mimeType = message.mimeTypeGuess()),
+            )
         }
     }
 
@@ -1325,7 +1298,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { _draft.value = drafts.get(project.projectId, unitId) }
     }
 
-    fun sendText(text: String) {
+    /**
+     * The mentions argument is accepted and ignored here.
+     *
+     * A unit chat posts to everyone on the unit, so naming one of them changes nothing
+     * about who is notified — v2 offers mentions in C&C only, for the same reason.
+     */
+    fun sendText(text: String, mentions: List<ChatMention> = emptyList()) {
         if (text.isBlank()) return
         val project = session.activeProject.value ?: return
         val unitId = selectedUnitId.value ?: return
@@ -1349,6 +1328,107 @@ class HomeViewModel @Inject constructor(
                 senderId = currentUser.userId ?: project.userId,
                 text = text,
                 replyToServerId = replyTo,
+            )
+        }
+    }
+
+    /**
+     * Post a shared pin.
+     *
+     * Sent directly rather than through the upload queue: there is no file, so there is
+     * nothing to upload and nothing to retry differently from an ordinary message. The
+     * address rides along as the body so a client that cannot draw a map still shows where.
+     */
+    private fun sendLocation(pin: AttachmentResult.Location) {
+        val project = session.activeProject.value ?: return
+        val unitId = selectedUnitId.value ?: return
+        val senderId = currentUser.userId ?: project.userId
+
+        // The snapshot **is** the message's attachment, so it goes through the upload queue
+        // like any other picture. The backend refuses a location with no attachment —
+        // `unit_chat_attachment_required` — and every other client renders this image rather
+        // than drawing its own map.
+        val snapshot = pin.snapshotPath?.let(::File)?.takeIf { it.exists() }
+        if (snapshot == null) {
+            _messages.tryEmit(R.string.map_picker_no_fix)
+            return
+        }
+
+        val pendingLocation = PendingLocation(
+            latitude = pin.latitude,
+            longitude = pin.longitude,
+            address = pin.address,
+        )
+
+        viewModelScope.launch {
+            uploadQueue.enqueue(
+                projectId = project.projectId,
+                userId = senderId,
+                module = ChatModule.HOME.key,
+                scopeId = unitId,
+                folder = LOCATION_FOLDER,
+                media = listOf(
+                    PickedMedia(
+                        // A file we wrote ourselves, so its own URI rather than a picked one.
+                        uri = android.net.Uri.fromFile(snapshot),
+                        localPath = snapshot.absolutePath,
+                        fileName = snapshot.name,
+                        mimeType = "image/jpeg",
+                        sizeBytes = snapshot.length(),
+                        // The address doubles as the body, which is what v2 sends and what a
+                        // client with no map still has to show.
+                        caption = pin.address,
+                        width = pin.snapshotWidth,
+                        height = pin.snapshotHeight,
+                    ),
+                ),
+                location = pendingLocation,
+                onRowsQueued = { ids ->
+                    val id = ids.firstOrNull() ?: return@enqueue
+                    viewModelScope.launch {
+                        chatRepository.createPendingAttachmentRow(
+                            module = ChatModule.HOME,
+                            projectId = project.projectId,
+                            scopeId = unitId,
+                            uniqueId = id,
+                            senderId = senderId,
+                            caption = pin.address,
+                            messageType = MESSAGE_TYPE_LOCATION,
+                            localPath = snapshot.absolutePath,
+                            fileName = snapshot.name,
+                            sizeBytes = snapshot.length(),
+                            durationMs = 0,
+                            messageGroup = System.currentTimeMillis(),
+                            // So the sender can open their own pin before the echo lands.
+                            location = pendingLocation,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    /**
+     * Post a contact card.
+     *
+     * As text, because there is no contact message type on the wire — v2 offers the option
+     * in its picker and its contact-reading code is commented out, so nothing was ever
+     * defined. Name and number as a message is understood by every client that exists
+     * today, and can be replaced the moment the backend defines a type for it.
+     */
+    private fun sendContact(contact: AttachmentResult.Contact) {
+        val project = session.activeProject.value ?: return
+        val unitId = selectedUnitId.value ?: return
+
+        viewModelScope.launch {
+            chatRepository.enqueueText(
+                module = ChatModule.HOME,
+                project = project,
+                scopeId = unitId,
+                senderId = currentUser.userId ?: project.userId,
+                text = listOf(contact.name, contact.phone)
+                    .filter { it.isNotBlank() }
+                    .joinToString(separator = "\n"),
             )
         }
     }
@@ -1536,14 +1616,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun ChatMessage.attachmentKey(): String? = when (this) {
-        is ChatMessage.Image -> remoteKey
-        is ChatMessage.Video -> remoteKey
-        is ChatMessage.Voice -> remoteKey
-        is ChatMessage.Document -> remoteKey
-        else -> null
-    }
-
     private fun ChatMessage.thumbnailKey(): String? = when (this) {
         is ChatMessage.Image -> thumbnail
         is ChatMessage.Video -> thumbnail
@@ -1671,6 +1743,22 @@ class HomeViewModel @Inject constructor(
     fun onAttachmentPicked(result: AttachmentResult, replacePrevious: Boolean? = null) {
         _callSheetPrompt.value = null
 
+        // A pin and a contact are messages, not uploads: there is no file, so they post
+        // straight away instead of going through the queue. They used to fall through the
+        // cast below and return silently, which is why picking either appeared to do
+        // nothing at all.
+        when (result) {
+            is AttachmentResult.Location -> {
+                sendLocation(result)
+                return
+            }
+            is AttachmentResult.Contact -> {
+                sendContact(result)
+                return
+            }
+            else -> Unit
+        }
+
         val media = (result as? AttachmentResult.Media)?.items.orEmpty()
         if (media.isEmpty()) return
 
@@ -1777,6 +1865,12 @@ class HomeViewModel @Inject constructor(
 
         /** Storage folder segment, matching v2's `HOME_FOLDER`. */
         const val HOME_FOLDER = "home"
+
+        /** v2's `Constants.LOCATION`. The server matches on this exact string. */
+        const val MESSAGE_TYPE_LOCATION = "location"
+
+        /** v2's `LOCATION_FOLDER` — where a map snapshot is stored. */
+        const val LOCATION_FOLDER = "location"
 
         /** Fast enough for a level meter to look live. */
         const val RECORDING_TICK_MS = 100L

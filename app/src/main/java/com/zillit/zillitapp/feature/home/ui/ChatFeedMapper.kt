@@ -191,10 +191,16 @@ private fun ChatMessageEntity.toMessage(): ChatMessage {
             isEdited = wasEdited,
             createdAt = created,
             isTranslated = isTranslated,
-            placeName = attachmentName ?: locationAddress.orEmpty(),
+            // The address, never the snapshot's file name: an optimistic row carries the
+            // address as its body and has no `locationAddress` until the server echoes it.
+            placeName = locationAddress?.takeIf { it.isNotBlank() } ?: message,
             address = locationAddress.orEmpty(),
             latitude = locationLatitude,
             longitude = locationLongitude,
+            // The snapshot rides as the message's attachment — see HomeViewModel.sendLocation.
+            thumbnail = attachmentThumbnail,
+            remoteKey = attachmentUrl,
+            localPath = localFilePath,
         )
 
         // "document", "attachment", and anything unrecognised. Falling through to a file row

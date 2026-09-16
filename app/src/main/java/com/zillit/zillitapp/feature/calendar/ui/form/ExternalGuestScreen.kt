@@ -8,43 +8,32 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.text.KeyboardOptions
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.directory.ExternalUser
 import com.zillit.zillitapp.core.directory.ProjectDepartment
@@ -55,6 +44,9 @@ import com.zillit.zillitapp.core.ui.components.SecondaryButton
 import com.zillit.zillitapp.core.ui.externaluser.ExternalUserFormSheet
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
 import kotlinx.coroutines.launch
+import com.zillit.zillitapp.core.ui.components.SearchField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Inviting people from outside the project.
@@ -129,31 +121,11 @@ fun ExternalGuestScreen(
                 modifier = Modifier.padding(bottom = ZillitTheme.spacing.sm),
             )
 
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(stringResource(R.string.calendar_search_external)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null,
-                        tint = ZillitTheme.colors.textTertiary,
-                    )
-                },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { query = "" }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = stringResource(R.string.action_close),
-                                tint = ZillitTheme.colors.textTertiary,
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth(),
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = stringResource(R.string.calendar_search_external),
+                keyboardType = KeyboardType.Email,
             )
 
             Box(modifier = Modifier.weight(1f)) {

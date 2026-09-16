@@ -47,12 +47,10 @@ fun ServerText.resolveWith(
     messages: Map<String, String> = emptyMap(),
     identifiers: Map<String, String> = emptyMap(),
 ): String {
-    val resolved = labels[key]
-        ?: messages[key]
-        ?: identifiers[key]
-        ?: labels.resolveLabel(key)
-
-    return resolved.applyElements(elements)
+    // Delegates rather than repeating the order: the lookup chain is the same question
+    // wherever it is asked, and two copies of it is how a key resolves differently in a
+    // notification than it does on screen.
+    return ServerDictionaries(labels, messages, identifiers).resolve(key, elements)
 }
 
 /** Convenience for a bare key with no substitutions. */

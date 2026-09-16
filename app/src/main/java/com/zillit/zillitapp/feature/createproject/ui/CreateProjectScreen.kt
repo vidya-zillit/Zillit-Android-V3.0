@@ -56,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.ui.components.PrimaryButton
 import com.zillit.zillitapp.core.ui.components.ZillitTopBar
@@ -133,7 +134,8 @@ fun CreateProjectScreen(
 ) {
     val windowSize = currentWindowSize()
     val maxWidth = windowSize.contentMaxWidth()
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
 
     var showTypePicker by remember { mutableStateOf(false) }
     var showSubTypePicker by remember { mutableStateOf(false) }
@@ -280,7 +282,7 @@ fun CreateProjectScreen(
 
                     LabelledSelector(
                         label = stringResource(R.string.project_type),
-                        value = uiState.selectedType?.nameKey?.let { labels.resolveLabel(it) },
+                        value = uiState.selectedType?.nameKey?.let { labels.resolve(it) },
                         hint = stringResource(R.string.create_project_select_type),
                         required = true,
                         enabled = uiState.availableTypes.isNotEmpty(),
@@ -291,7 +293,7 @@ fun CreateProjectScreen(
                     if (uiState.availableSubTypeKeys.isNotEmpty()) {
                         LabelledSelector(
                             label = stringResource(R.string.project_sub_type),
-                            value = uiState.selectedSubTypeKey?.let { labels.resolveLabel(it) },
+                            value = uiState.selectedSubTypeKey?.let { labels.resolve(it) },
                             hint = stringResource(R.string.create_project_select_sub_type),
                             required = false,
                             enabled = true,

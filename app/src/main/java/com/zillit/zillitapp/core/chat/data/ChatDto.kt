@@ -78,11 +78,23 @@ data class ChatAttachmentDto(
     @SerialName("height") val height: Int? = null,
 )
 
+/**
+ * A shared pin.
+ *
+ * **The field names are the server's and are not symmetrical**: latitude is `lat` but
+ * longitude is `long`, not `lng` or `longitude`. This class previously used `latitude` and
+ * `longitude`, which serialise to keys the backend ignores — a location sent that way is
+ * accepted and comes back empty on every client.
+ */
 @Serializable
 data class ChatLocationDto(
-    @SerialName("latitude") val latitude: Double? = null,
-    @SerialName("longitude") val longitude: Double? = null,
+    @SerialName("lat") val latitude: Double? = null,
+    @SerialName("long") val longitude: Double? = null,
     @SerialName("address") val address: String? = null,
+    /** Static map preview the backend renders. Sent empty; filled in on the way back. */
+    @SerialName("imageLink") val imageLink: String? = null,
+    @SerialName("height") val height: Long? = null,
+    @SerialName("width") val width: Long? = null,
 )
 
 @Serializable

@@ -139,6 +139,9 @@ class SocketManager @Inject constructor(
     /** The pending rebuild, so drops while waiting do not stack timers. */
     private var rebuildJob: kotlinx.coroutines.Job? = null
 
+    /** A first connect held back while the device session is established. */
+    private var awaitingSession = false
+
     /**
      * Declares that the app wants a live socket, and connects if possible.
      * Safe to call repeatedly and from anywhere.
@@ -206,6 +209,27 @@ class SocketManager @Inject constructor(
                 if (!existing.connected()) existing.connect()
                 return
             }
+
+            // In token mode the handshake should carry the device token, and the socket
+            // starts at splash — usually before the session probe has answered. Rather
+            // than connect on moduledata and stay there until the next rebuild, wait for
+            // the session once: a bounded wait (the establish call itself, or its backoff),
+            // after which the attempt below presents whatever is available. v2's socket
+            // presents the token whenever one exists; this makes "exists" true for the
+            // first connect too.
+            val tokens = tokenSession.get()
+            if (tokens.tokenMode && tokens.currentDeviceToken() == null && !awaitingSession) {
+                awaitingSession = true
+                _connectionState.value = SocketConnectionState.Connecting
+                ZillitLog.socket("Waiting for the device session before connecting")
+                scope.launch {
+                    tokens.ensureDeviceSession()
+                    synchronized(lock) { awaitingSession = false }
+                    ensureConnected()
+                }
+                return
+            }
+            if (awaitingSession) return
 
             // The credential is chosen **now**, at this attempt — never captured earlier.
             // A reconnect hours after startup must present the current token, not the one
@@ -394,8 +418,8 @@ class SocketManager @Inject constructor(
                 // refresh before the attempt — otherwise the loop presents a dead token
                 // indefinitely and every attempt fails the same way.
                 val tokens = tokenSession.get()
-                if (tokens.enabled.value && tokens.currentDeviceToken() == null) {
-                    tokens.refresh()
+                if (tokens.tokenMode && tokens.currentDeviceToken() == null) {
+                    tokens.ensureDeviceSession()
                 }
 
                 // A network the client cannot reach makes this pointless; the network
@@ -520,6 +544,8 @@ class SocketManager @Inject constructor(
         payload: JsonObject,
         timeoutMs: Long = ACK_TIMEOUT_MS,
     ): JsonObject? {
+        // See [ACK_ARGUMENT_PAD] for why a second, empty argument goes out with every one
+        // of these.
         val live = synchronized(lock) { socket?.takeIf { it.connected() } }
         if (live == null) {
             ZillitLog.socketWarn(">> $event dropped — socket not connected")
@@ -530,7 +556,7 @@ class SocketManager @Inject constructor(
 
         return withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine { continuation ->
-                live.emit(event, JSONObject(payload.toString()), Ack { args ->
+                live.emit(event, arrayOf(JSONObject(payload.toString()), ACK_ARGUMENT_PAD), Ack { args ->
                     // The ack arrives on the socket's own thread; resuming more than once
                     // would crash, and a server that double-acks is not hypothetical.
                     if (!continuation.isActive) return@Ack
@@ -554,6 +580,21 @@ class SocketManager @Inject constructor(
 
         /** Long enough for a slow server, short enough that the UI is not stuck. */
         const val ACK_TIMEOUT_MS = 10_000L
+
+        /**
+         * The empty second argument every acknowledged emit carries.
+         *
+         * The handlers on this server read the acknowledgement callback as their **third**
+         * parameter, so a client that sends one payload leaves the callback sitting in the
+         * second slot and the server answers nobody. v2 pads every acknowledged emit with a
+         * `null` for exactly this reason, and the events that went out unpadded from here
+         * are the ones that never came back: `user:list` (three attempts, no answer, so the
+         * Chat tab had nothing to show) and `private_chat` (no answer, so a sent message
+         * stayed pending forever).
+         *
+         * Not a style choice and not removable — the server's parameter order is fixed.
+         */
+        val ACK_ARGUMENT_PAD: Any? = null
 
         /** How long to wait for the join ack before proceeding regardless. */
         const val JOIN_ACK_TIMEOUT_MS = 3_000L

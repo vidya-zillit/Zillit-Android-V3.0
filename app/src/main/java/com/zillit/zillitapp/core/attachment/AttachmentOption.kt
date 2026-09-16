@@ -86,7 +86,10 @@ enum class AttachmentOption(
                 arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
             }
 
-            CONTACT -> arrayOf(Manifest.permission.READ_CONTACTS)
+            // None. The system contact picker returns a URI this app is granted access
+            // to for that one row, so READ_CONTACTS is never needed — and asking for it
+            // meant a denial silently blocked a flow that would have worked.
+            CONTACT -> emptyArray()
 
             LOCATION -> arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,

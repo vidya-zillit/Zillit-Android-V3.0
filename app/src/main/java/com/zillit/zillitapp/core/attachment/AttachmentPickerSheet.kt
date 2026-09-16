@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.ContactsContract
 import android.graphics.drawable.ColorDrawable
 import android.provider.Settings
 import android.view.ViewGroup
@@ -59,9 +60,11 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.attachment.editor.ImageEditorScreen
-import com.zillit.zillitapp.core.ui.components.FullScreenSurface
 import com.zillit.zillitapp.core.ui.components.ZillitConfirmDialog
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import com.zillit.zillitapp.core.ui.components.FullScreenSurface
+import com.zillit.zillitapp.core.ui.location.LocationPickerScreen
+import com.zillit.zillitapp.core.ui.location.PickedLocation
 import java.io.File
 import kotlinx.coroutines.launch
 
@@ -118,7 +121,39 @@ fun AttachmentPickerSheet(
     // created before the intent launches and remembered across the result.
     var captureTarget by remember { mutableStateOf<Pair<File, String>?>(null) }
 
+    /** True while the map screen is up. */
+    var pickingLocation by remember { mutableStateOf(false) }
+
     val resolver = rememberMediaFileResolver()
+
+    /**
+     * The system contact picker.
+     *
+     * Android's own, rather than a list of our own: it already handles search, accounts and
+     * the per-pick grant, so reading the whole address book to draw a list would ask for far
+     * more access than sharing one card needs.
+     *
+     * Picks a **phone number**, not a contact. `PickContact()` returns a row of the Contacts
+     * table, which has no number column — the query in [readContact] threw on it, the
+     * failure was swallowed, and every pick came back as cancelled. A row of the Phone table
+     * carries the name and the number together, and the per-row grant still covers it.
+     */
+    val contactLauncher = rememberLauncherForActivityResult(
+        PickPhoneNumber,
+    ) { uri ->
+        if (uri == null) {
+            onResult(AttachmentResult.Cancelled)
+            onDismiss()
+            return@rememberLauncherForActivityResult
+        }
+        val contact = context.readContact(uri)
+        if (contact == null) {
+            onResult(AttachmentResult.Cancelled)
+        } else {
+            onResult(contact)
+        }
+        onDismiss()
+    }
 
     val documentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
@@ -188,6 +223,8 @@ fun AttachmentPickerSheet(
                 resolver = resolver,
                 onOpenGallery = { galleryFilter = it },
                 onLaunchDocument = { documentLauncher.launch(DOCUMENT_MIME_TYPES) },
+                onOpenLocation = { pickingLocation = true },
+                onLaunchContact = { contactLauncher.launch(null) },
                 onLaunchCamera = { file, mime, uri ->
                     captureTarget = file to mime
                     cameraLauncher.launch(uri)
@@ -219,10 +256,47 @@ fun AttachmentPickerSheet(
                     captureTarget = file to mime
                     videoLauncher.launch(uri)
                 },
+                onOpenLocation = { pickingLocation = true },
+                onLaunchContact = { contactLauncher.launch(null) },
             )
         } else {
             pendingOption = option
             permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    // The map replaces the sheet, like the gallery does, rather than stacking on it.
+    if (pickingLocation) {
+        FullScreenSurface(onDismiss = { pickingLocation = false }) {
+            LocationPickerScreen(
+                initial = PickedLocation(),
+                onBack = {
+                    pickingLocation = false
+                    onResult(AttachmentResult.Cancelled)
+                    onDismiss()
+                },
+                onConfirm = { picked ->
+                    pickingLocation = false
+                    // A point is the whole message. An address with no coordinates is a
+                    // search someone typed and never resolved, and a pin nobody can open
+                    // is worse than no pin.
+                    if (picked.hasPoint) {
+                        onResult(
+                            AttachmentResult.Location(
+                                latitude = picked.latitude ?: 0.0,
+                                longitude = picked.longitude ?: 0.0,
+                                address = picked.address,
+                                snapshotPath = picked.snapshotPath,
+                                snapshotWidth = picked.snapshotWidth,
+                                snapshotHeight = picked.snapshotHeight,
+                            ),
+                        )
+                    } else {
+                        onResult(AttachmentResult.Cancelled)
+                    }
+                    onDismiss()
+                },
+            )
         }
     }
 
@@ -427,6 +501,8 @@ private fun launchOption(
     onLaunchDocument: () -> Unit,
     onLaunchCamera: (File, String, Uri) -> Unit,
     onLaunchVideo: (File, String, Uri) -> Unit,
+    onOpenLocation: () -> Unit,
+    onLaunchContact: () -> Unit,
 ) {
     when (option) {
         AttachmentOption.CAMERA -> {
@@ -444,8 +520,11 @@ private fun launchOption(
         AttachmentOption.AUDIO -> onOpenGallery(GalleryFilter.AUDIO)
         AttachmentOption.DOCUMENT -> onLaunchDocument()
 
-        // Both need their own screens; wired when the map and contact pickers land.
-        AttachmentOption.LOCATION, AttachmentOption.CONTACT -> Unit
+        // A pin is picked on the app's own map screen; a contact comes from the system
+        // picker, which needs no screen of ours. Both used to fall through to `Unit` here,
+        // so the tiles were tappable and did nothing.
+        AttachmentOption.LOCATION -> onOpenLocation()
+        AttachmentOption.CONTACT -> onLaunchContact()
     }
 }
 
@@ -486,3 +565,52 @@ private const val GRID_COLUMNS = 4
 
 /** v2's cap. */
 private const val DEFAULT_MAX_SELECTABLE = 100
+
+/**
+ * `ACTION_PICK` over the Phone table.
+ *
+ * The stock [ActivityResultContracts.PickContact] picks from the Contacts table, whose rows
+ * have no number; this asks the same system picker for a phone-number row instead, so one
+ * query answers with both the name and the number and no `READ_CONTACTS` is needed.
+ */
+private object PickPhoneNumber : androidx.activity.result.contract.ActivityResultContract<Unit?, Uri?>() {
+    override fun createIntent(context: Context, input: Unit?): Intent =
+        Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        intent?.takeIf { resultCode == Activity.RESULT_OK }?.data
+}
+
+/**
+ * Read the name and number off a picked Phone row.
+ *
+ * v2 offers a Contact tile too, and the code behind it is commented out from end to end —
+ * so this is new rather than ported. Deliberately minimal: a name and a number are what a
+ * production crew shares, and pulling every email, address and note would turn a one-line
+ * message into a form.
+ *
+ * Returns null when the row has no usable number, which is the one case where sharing it
+ * would send an empty card.
+ */
+private fun Context.readContact(uri: Uri): AttachmentResult.Contact? = runCatching {
+    // The picker grants access to this row only, so no READ_CONTACTS check is needed for
+    // the URI it handed back.
+    contentResolver.query(
+        uri,
+        arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER,
+        ),
+        null,
+        null,
+        null,
+    )?.use { cursor ->
+        if (!cursor.moveToFirst()) return@use null
+
+        val name = cursor.getString(0).orEmpty().trim()
+        val phone = cursor.getString(1).orEmpty().trim()
+        if (phone.isBlank()) return@use null
+
+        AttachmentResult.Contact(name = name, phone = phone)
+    }
+}.getOrNull()

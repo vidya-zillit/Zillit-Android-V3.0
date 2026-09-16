@@ -20,11 +20,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -37,13 +35,11 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,11 +52,15 @@ import com.zillit.zillitapp.core.calendar.data.CalendarFormPayload
 import com.zillit.zillitapp.core.calendar.model.Timezone
 import com.zillit.zillitapp.core.directory.ProjectUser
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.asLabel
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.ui.components.PrimaryButton
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
 import com.zillit.zillitapp.core.ui.theme.toColorOrDefault
+import com.zillit.zillitapp.core.ui.components.SearchField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Choosing an event's colour: the approved palette, or anything else.
@@ -279,7 +279,11 @@ fun TimezonePickerSheet(
                 .padding(horizontal = ZillitTheme.spacing.lg),
         ) {
             SheetTitle(stringResource(R.string.calendar_timezone))
-            SearchField(query = query, onQueryChange = { query = it })
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                modifier = Modifier.padding(bottom = ZillitTheme.spacing.sm),
+            )
 
             LazyColumn(
                 modifier = Modifier.heightIn(max = 420.dp),
@@ -343,7 +347,8 @@ fun InviteePickerSheet(
             restore = { mutableStateOf(it.toSet()) },
         ),
     ) { mutableStateOf(selectedIds.toSet()) }
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
 
     val candidates = remember(users, excludeUserIds) {
         users.filterNot { it.userId in excludeUserIds }
@@ -359,7 +364,7 @@ fun InviteePickerSheet(
                     it.designationName?.contains(query, ignoreCase = true) == true ||
                     // Also matched on the resolved text, so searching "Director" finds
                     // someone whose stored designation is `director_label`.
-                    it.designationName?.let { key -> labels.resolveLabel(key) }
+                    it.designationName?.let { key -> labels.resolve(key) }
                         ?.contains(query, ignoreCase = true) == true
             }
         }
@@ -377,7 +382,11 @@ fun InviteePickerSheet(
                 .padding(horizontal = ZillitTheme.spacing.lg),
         ) {
             SheetTitle(stringResource(R.string.calendar_select_invitees))
-            SearchField(query = query, onQueryChange = { query = it })
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                modifier = Modifier.padding(bottom = ZillitTheme.spacing.sm),
+            )
 
             // Select-all applies to what is currently filtered, not the whole project —
             // searching "camera" then tapping it should invite the camera department.
@@ -568,24 +577,5 @@ private fun SheetTitle(text: String) {
     )
 }
 
-@Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = { Text(stringResource(R.string.action_search)) },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Outlined.Search,
-                contentDescription = null,
-                tint = ZillitTheme.colors.textTertiary,
-            )
-        },
-        singleLine = true,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = ZillitTheme.spacing.sm),
-    )
-}
 
 private const val COLOR_COLUMNS = 4

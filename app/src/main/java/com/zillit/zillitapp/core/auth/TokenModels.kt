@@ -59,9 +59,16 @@ data class ProjectSessionRequest(
 data class AccessToken(
     val value: String,
     val expiresAt: Long,
+    val issuedAtMillis: Long = System.currentTimeMillis(),
 ) {
     fun isExpired(now: Long = System.currentTimeMillis(), skewMillis: Long = SKEW): Boolean =
         now >= expiresAt - skewMillis
+
+    /**
+     * When the proactive loop renews. ~80% of the lifetime per the spec, measured from
+     * when the token was adopted — [expiresAt] minus the full life gives that moment.
+     */
+    val renewAt: Long get() = expiresAt - ((expiresAt - issuedAtMillis) * 0.2).toLong()
 
     private companion object {
         /** Treated as expired slightly early, so a token cannot die in flight. */
@@ -111,6 +118,17 @@ object TokenErrors {
     /** Kill-switch: the feature is off server-side → fall back to moduledata. */
     const val AUTH_DISABLED = "session_token_auth_disabled"
 
-    /** Handshake rejected on the socket for a bad/unknown device — the moduledata path. */
+    /** The device holds no usable membership in the project asked for — no-access, not auth. */
+    const val NO_MEMBERSHIP = "session_project_no_membership"
+    const val ACCESS_DENIED = "session_project_access_denied"
+
+    /** A route that has stopped accepting moduledata. Only a bearer gets through. */
+    const val MODULEDATA_NOT_ACCEPTED = "libs_moduledata_not_accepted"
+
+    /**
+     * The backend has no record of this device — a fresh install that has neither created
+     * nor joined a project. Answered as a 401 on every signed route, and as a rejected
+     * socket handshake, until the first create/join registers the device.
+     */
     const val INVALID_DEVICE_ID = "libs_invalid_device_id"
 }

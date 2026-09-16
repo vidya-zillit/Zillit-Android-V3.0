@@ -24,6 +24,18 @@ data class ProjectDto(
     @SerialName("user_id") val userId: String? = null,
     @SerialName("project_name") val projectName: String? = null,
     @SerialName("project_type") val projectType: String? = null,
+
+    /**
+     * The machine value — `entertainment`, `personal`, `other` — as opposed to
+     * `project_type`, which is a label key for display.
+     *
+     * They are not interchangeable, and the rules that turn C&C's filter chips on and off
+     * are written against this one.
+     */
+    @SerialName("project_type_id") val projectTypeId: String? = null,
+
+    /** This user's standing in the project: `accepted`, `pending`, `removed`. */
+    @SerialName("status") val membershipStatus: String? = null,
     @SerialName("project_sub_type") val projectSubType: String? = null,
     @SerialName("project_code") val projectCode: String? = null,
     @SerialName("company_name") val companyName: String? = null,
@@ -37,6 +49,15 @@ data class ProjectDto(
     @SerialName("delete_in_hours") val deleteInHours: Long? = null,
     @SerialName("unread") val unread: Int? = null,
     @SerialName("date_created") val dateCreated: Long? = null,
+    /**
+     * The project's shared "Accounts" mailbox.
+     *
+     * Populated only for users in the project's Accounts department; `{}` or null for
+     * everyone else — which is exactly how the email module decides whether to offer the
+     * mailbox switcher at all.
+     */
+    @SerialName("accounts_mail_box_detail")
+    val accountsMailbox: com.zillit.zillitapp.core.directory.MailboxDto? = null,
 )
 
 /**
@@ -70,10 +91,22 @@ data class JoinProjectRequest(
 fun ProjectDto.toEntity(cachedAt: Long): ProjectEntity? {
     val id = projectId?.takeIf { it.isNotBlank() } ?: return null
     return ProjectEntity().also { entity ->
+        entity.accountsMailboxEmail = accountsMailbox?.emailAddress?.takeIf { it.isNotBlank() }
+        entity.accountsSmtpHost = accountsMailbox?.smtpHost.orEmpty()
+        entity.accountsSmtpPort = accountsMailbox?.smtpPort ?: 0
+        entity.accountsSmtpUserName = accountsMailbox?.smtpUserName.orEmpty()
+        entity.accountsImapHost = accountsMailbox?.imapHost.orEmpty()
+        entity.accountsImapPort = accountsMailbox?.imapPort ?: 0
+        entity.accountsBccPresets = accountsMailbox?.bcc.orEmpty()
+            .map { it.emailAddress }
+            .filter { it.isNotBlank() }
+            .joinToString(",")
         entity.projectId = id
         entity.userId = userId.orEmpty()
         entity.projectName = projectName.orEmpty()
         entity.projectType = projectType
+        entity.projectTypeId = projectTypeId
+        entity.membershipStatus = membershipStatus.orEmpty()
         entity.projectSubType = projectSubType
         entity.projectCode = projectCode
         entity.companyName = companyName

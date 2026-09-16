@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.common.toDateLabel
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
@@ -38,7 +39,8 @@ fun ProjectInfoSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -75,11 +77,11 @@ fun ProjectInfoSheet(
             // Type and sub-type are server label KEYS, resolved through the dictionary
             // exactly as on the card itself.
             project.type?.takeIf { it.isNotBlank() }?.let {
-                InfoRow(stringResource(R.string.project_type), labels.resolveLabel(it))
+                InfoRow(stringResource(R.string.project_type), labels.resolve(it))
             }
 
             project.subType?.takeIf { it.isNotBlank() }?.let {
-                InfoRow(stringResource(R.string.project_sub_type), labels.resolveLabel(it))
+                InfoRow(stringResource(R.string.project_sub_type), labels.resolve(it))
             }
 
             project.companyName?.takeIf { it.isNotBlank() }?.let {

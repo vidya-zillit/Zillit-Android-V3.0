@@ -49,6 +49,7 @@ import com.zillit.zillitapp.feature.calendar.ui.lists.EventListKind
 import com.zillit.zillitapp.core.ui.chat.MediaViewerScreen
 import com.zillit.zillitapp.core.ui.components.ZillitConfirmDialog
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import com.zillit.zillitapp.core.ui.chat.SaveToDeviceLauncher
 
 /**
  * Home: the unit strip and the selected unit's thread.
@@ -149,6 +150,9 @@ fun HomeRoute(
     // Turns a gathered share into the OS chooser. Lives here because starting an Activity
     // needs a Context the ViewModel must not hold.
     ShareLauncher(requests = viewModel.shareRequests, cache = viewModel.mediaCacheForShare)
+    // Saving needs a permission on API 28 and none above it, and asking for one needs an
+    // Activity — so the view model names the file and this performs the copy.
+    SaveToDeviceLauncher(requests = viewModel.saveRequests)
 
     // The strip arrives asynchronously, so the first unit is selected once it does rather
     // than assumed at construction.

@@ -72,7 +72,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import android.graphics.Bitmap
+import com.google.android.gms.maps.GoogleMap
+import com.google.maps.android.compose.MapEffect
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import kotlin.coroutines.resume
 import java.util.Locale
 
 /** Where something happens: what people read, and where a maps link should send them. */
@@ -80,6 +87,17 @@ data class PickedLocation(
     val address: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
+    /**
+     * A snapshot of the map, saved to the cache.
+     *
+     * A chat location is **an image message with coordinates**, not a bare pin: the backend
+     * rejects one without an attachment (`unit_chat_attachment_required`), and every other
+     * client renders this picture rather than drawing its own map. v2 takes the same
+     * snapshot for the same reason.
+     */
+    val snapshotPath: String? = null,
+    val snapshotWidth: Int = 0,
+    val snapshotHeight: Int = 0,
 ) {
     val hasPoint: Boolean get() = latitude != null && longitude != null
     val isEmpty: Boolean get() = address.isBlank() && !hasPoint
@@ -129,6 +147,11 @@ fun LocationPickerScreen(
         )
     }
 
+    // Held so Confirm can photograph the map. GoogleMap hands this over once it is ready;
+    // it is null until then, which is why the confirm path treats a missing shot as
+    // non-fatal rather than blocking the send.
+    var snapshotter by remember { mutableStateOf<GoogleMap?>(null) }
+
     var locationGranted by rememberSaveable { mutableStateOf(context.hasLocationPermission()) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -171,6 +194,15 @@ fun LocationPickerScreen(
 
     // Geocoding follows the camera, but only once it has settled — a lookup per frame while
     // someone is still dragging is wasted work and a flickering address.
+    // Open on where the user is, when nothing was picked before and permission allows.
+    // v2 does this, and without it the map opens on a world view and the first thing anyone
+    // has to do is find themselves.
+    LaunchedEffect(locationGranted) {
+        if (locationGranted && !initial.hasPoint && !touched) {
+            context.moveToCurrentLocation(cameraPositionState)
+        }
+    }
+
     LaunchedEffect(cameraPositionState) {
         snapshotFlow { cameraPositionState.isMoving to cameraPositionState.position.target }
             .debounce(SETTLE_MS)
@@ -244,7 +276,10 @@ fun LocationPickerScreen(
                         zoomControlsEnabled = false,
                         mapToolbarEnabled = false,
                     ),
-                )
+                    onMapLoaded = { },
+                ) {
+                    MapEffect(Unit) { map -> snapshotter = map }
+                }
 
                 // The pin sits over the centre of the map, lifted by half its height so its
                 // tip — not its middle — marks the point the camera is on.
@@ -326,15 +361,29 @@ fun LocationPickerScreen(
                 PrimaryButton(
                     text = stringResource(R.string.map_picker_confirm),
                     onClick = {
-                        onConfirm(
-                            PickedLocation(
-                                address = address.trim(),
-                                latitude = picked?.latitude,
-                                longitude = picked?.longitude,
-                            ),
-                        )
+                        // Capture the map before leaving. Asynchronous, so the result is
+                        // delivered from the callback rather than read back here.
+                        val point = picked
+                        if (point == null) {
+                            onConfirm(PickedLocation(address = address.trim()))
+                            return@PrimaryButton
+                        }
+
+                        scope.launch {
+                            val shot = snapshotter?.let { context.captureMap(it) }
+                            onConfirm(
+                                PickedLocation(
+                                    address = address.trim(),
+                                    latitude = point.latitude,
+                                    longitude = point.longitude,
+                                    snapshotPath = shot?.path,
+                                    snapshotWidth = shot?.width ?: 0,
+                                    snapshotHeight = shot?.height ?: 0,
+                                ),
+                            )
+                        }
                     },
-                    enabled = picked != null,
+                    enabled = address.isNotBlank() || picked != null,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -438,3 +487,37 @@ private const val WORLD_ZOOM = 2f
 private const val PLACE_ZOOM = 15f
 private const val SETTLE_MS = 400L
 private val PIN_SIZE = 48.dp
+
+/** A captured map image and its size. */
+private data class MapShot(val path: String, val width: Int, val height: Int)
+
+/**
+ * Photograph the map as it stands.
+ *
+ * The picture is what every other client shows for a location message — nobody re-renders a
+ * map from the coordinates — so it has to be taken while the map is on screen, not derived
+ * later. Written to the cache directory: it is uploaded immediately and never needed again.
+ */
+private suspend fun Context.captureMap(map: GoogleMap): MapShot? =
+    suspendCancellableCoroutine { continuation ->
+        runCatching {
+            map.snapshot { bitmap ->
+                if (bitmap == null) {
+                    if (continuation.isActive) continuation.resume(null)
+                    return@snapshot
+                }
+                val file = File(cacheDir, "location_${System.currentTimeMillis()}.jpg")
+                runCatching {
+                    FileOutputStream(file).use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, SNAPSHOT_QUALITY, out)
+                    }
+                }
+                if (continuation.isActive) {
+                    continuation.resume(MapShot(file.absolutePath, bitmap.width, bitmap.height))
+                }
+            }
+        }.onFailure { if (continuation.isActive) continuation.resume(null) }
+    }
+
+/** Good enough for a thumbnail in a bubble, small enough to upload quickly. */
+private const val SNAPSHOT_QUALITY = 80

@@ -63,8 +63,16 @@ fun ChatLibraryScreen(
     onOpenLink: (String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Which tab opens first.
+     *
+     * Media unless the caller asks otherwise. The Files shortcut on a details screen asks
+     * for Docs: landing on Media and making the user find the tab would answer a different
+     * question from the one they tapped.
+     */
+    initialTab: ChatLibraryTab = ChatLibraryTab.MEDIA,
 ) {
-    var tab by remember { mutableStateOf(ChatLibraryTab.MEDIA) }
+    var tab by remember(initialTab) { mutableStateOf(initialTab) }
 
     val media = remember(messages) {
         messages.filter { it is ChatMessage.Image || it is ChatMessage.Video }

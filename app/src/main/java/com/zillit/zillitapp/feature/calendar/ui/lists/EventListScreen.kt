@@ -12,21 +12,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.EventBusy
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
@@ -36,15 +30,12 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,6 +55,9 @@ import com.zillit.zillitapp.feature.calendar.ui.detail.EventDetailSheet
 import com.zillit.zillitapp.feature.calendar.ui.detail.InviteeListSheet
 import java.time.LocalDate
 import java.time.ZoneId
+import com.zillit.zillitapp.core.ui.components.SearchField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Received, Created, Declined and Join Call — one screen, four configurations.
@@ -311,32 +305,10 @@ private fun SearchAndDateFilter(
             .padding(horizontal = ZillitTheme.spacing.md, vertical = ZillitTheme.spacing.sm),
         verticalArrangement = Arrangement.spacedBy(ZillitTheme.spacing.sm),
     ) {
-        OutlinedTextField(
-            value = search,
-            onValueChange = onSearchChanged,
-            placeholder = { Text(stringResource(R.string.calendar_search_hint)) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = null,
-                    tint = ZillitTheme.colors.textTertiary,
-                )
-            },
-            trailingIcon = {
-                if (search.isNotEmpty()) {
-                    IconButton(onClick = { onSearchChanged("") }) {
-                        Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = stringResource(R.string.action_close),
-                            tint = ZillitTheme.colors.textTertiary,
-                        )
-                    }
-                }
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(),
-            modifier = Modifier.fillMaxWidth(),
+        SearchField(
+            query = search,
+            onQueryChange = onSearchChanged,
+            placeholder = stringResource(R.string.calendar_search_hint),
         )
 
         if (showDateFilter) {

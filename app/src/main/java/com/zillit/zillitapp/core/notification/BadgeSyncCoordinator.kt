@@ -81,8 +81,9 @@ class BadgeSyncCoordinator @Inject constructor(
         if (started) return
         started = true
 
-        // 1. Network came back. `isOnline` only turns true for a VALIDATED connection, so
-        //    this does not fire for a Wi-Fi network that cannot reach the internet.
+        // 1. Network came back. `isOnline` tracks whether an internet-capable network
+        //    exists, and fails open — a network that cannot actually reach the server
+        //    shows up as a failed request, not as a state the app refuses to leave.
         scope.launch {
             var wasOnline = networkMonitor.isOnline.value
             networkMonitor.isOnline.collectLatest { online ->

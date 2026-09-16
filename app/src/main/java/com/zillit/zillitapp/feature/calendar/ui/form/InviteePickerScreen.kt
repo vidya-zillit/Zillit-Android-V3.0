@@ -1,40 +1,30 @@
 package com.zillit.zillitapp.feature.calendar.ui.form
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -45,10 +35,15 @@ import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.directory.ProjectDepartment
 import com.zillit.zillitapp.core.directory.ProjectUser
 import com.zillit.zillitapp.core.labels.LocalLabels
+import com.zillit.zillitapp.core.labels.ServerDictionaries
+import com.zillit.zillitapp.core.labels.rememberDictionaries
 import com.zillit.zillitapp.core.labels.asLabel
 import com.zillit.zillitapp.core.labels.resolveLabel
 import com.zillit.zillitapp.core.ui.components.PrimaryButton
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import com.zillit.zillitapp.core.ui.components.SearchField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /**
  * Choosing who to invite.
@@ -72,7 +67,8 @@ fun InviteePickerScreen(
     excludeUserIds: Set<String> = emptySet(),
     isAdmin: Boolean = false,
 ) {
-    val labels = LocalLabels.current
+    // Every dictionary, not just labels: a key can live in any of the three.
+    val labels = rememberDictionaries()
 
     var query by rememberSaveable { mutableStateOf("") }
     var selection by rememberSaveable(
@@ -143,32 +139,10 @@ fun InviteePickerScreen(
                 }
             }
 
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(stringResource(R.string.action_search)) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null,
-                        tint = ZillitTheme.colors.textTertiary,
-                    )
-                },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { query = "" }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = stringResource(R.string.action_close),
-                                tint = ZillitTheme.colors.textTertiary,
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = ZillitTheme.spacing.sm),
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                modifier = Modifier.padding(vertical = ZillitTheme.spacing.sm),
             )
 
             val showingDepartments = when (tabs[tabIndex]) {
@@ -352,7 +326,7 @@ private fun UserList(
 /** Matches the name, the department and the designation, resolved as well as raw. */
 private fun List<ProjectUser>.filterUsers(
     query: String,
-    labels: Map<String, String>,
+    labels: ServerDictionaries,
 ): List<ProjectUser> {
     if (query.isBlank()) return this
     return filter { user ->
@@ -364,12 +338,12 @@ private fun List<ProjectUser>.filterUsers(
 
 private fun List<ProjectDepartment>.filterDepartments(
     query: String,
-    labels: Map<String, String>,
+    labels: ServerDictionaries,
 ): List<ProjectDepartment> {
     if (query.isBlank()) return this
     return filter { it.name.matches(query, labels) }
 }
 
-private fun String.matches(query: String, labels: Map<String, String>): Boolean =
+private fun String.matches(query: String, labels: ServerDictionaries): Boolean =
     contains(query, ignoreCase = true) ||
-        labels.resolveLabel(this).contains(query, ignoreCase = true)
+        labels.resolve(this).contains(query, ignoreCase = true)

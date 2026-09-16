@@ -52,6 +52,16 @@ data class DownloadRequest(
     val fileName: String,
     val module: String,
     val linkedMessageId: String? = null,
+    /**
+     * Where this file actually lives, when the server said so.
+     *
+     * Null means "the project's own bucket", which is right for anything this device
+     * uploaded and wrong for a file that predates a region change or belongs to someone
+     * who joined from elsewhere. Both are carried on every media object the server
+     * returns, so passing them through costs nothing and skipping them costs the file.
+     */
+    val bucket: String? = null,
+    val region: String? = null,
 ) {
     val file: File get() = File(destinationPath)
 }

@@ -63,6 +63,20 @@ class UploadQueue @Inject constructor(
         replacePreviousChats: Boolean? = null,
         isDistributeAutomatic: Boolean = false,
         moduleName: String = "",
+        /**
+         * How the message is sent once the bytes are up.
+         *
+         * A socket chat emits and waits for an acknowledgement instead of posting. The
+         * upload half is identical, so both share this queue rather than C&C growing a
+         * second one that would need its own retry, ordering and process-death handling.
+         */
+        deliveryKind: String = PendingUploadEntity.DELIVERY_UNIT,
+        /** Socket delivery: whether [scopeId] names a room. */
+        isGroup: Boolean = false,
+        /** Socket delivery: the recipient's device, which the server routes on. */
+        receiverDeviceId: String = "",
+        /** Set when the attachment is a map snapshot, so the pin travels with it. */
+        location: PendingLocation? = null,
         onRowsQueued: (List<String>) -> Unit = {},
     ): List<String> {
         val ids = mutableListOf<String>()
@@ -101,6 +115,14 @@ class UploadQueue @Inject constructor(
                         this.isDistributeAutomatic = isDistributeAutomatic
                         this.moduleName = moduleName
                         status = PendingUploadEntity.STATUS_QUEUED
+                        this.deliveryKind = deliveryKind
+                        this.isGroup = isGroup
+                        this.receiverDeviceId = receiverDeviceId
+                        location?.let {
+                            locationLat = it.latitude
+                            locationLng = it.longitude
+                            locationAddress = it.address
+                        }
                         messageGroup = batchStamp
                         // Offset by index so the batch keeps its picked order — several
                         // rows written in the same millisecond would otherwise sort
@@ -340,3 +362,10 @@ class UploadQueue @Inject constructor(
         private const val BACKOFF_SECONDS = 15L
     }
 }
+
+/** A pin travelling with its map snapshot through the upload queue. */
+data class PendingLocation(
+    val latitude: Double,
+    val longitude: Double,
+    val address: String,
+)

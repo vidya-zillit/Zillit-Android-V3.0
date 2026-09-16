@@ -39,6 +39,12 @@ import androidx.compose.ui.unit.dp
 import com.zillit.zillitapp.R
 import com.zillit.zillitapp.core.ui.chat.model.ChatMessage
 import com.zillit.zillitapp.core.ui.theme.ZillitTheme
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.draw.clip
+import com.zillit.zillitapp.core.ui.chat.model.QUICK_REACTIONS
 
 /**
  * Everything a long press can offer, across every chat surface.
@@ -197,9 +203,17 @@ fun ChatMessageOptionsSheet(
     onDismiss: () -> Unit,
     /** A reply gets the reduced set — see [ChatMessageOptions.replyOptions]. */
     isReply: Boolean = false,
+    /**
+     * Emoji reactions, offered as a row above the actions. Null hides the row entirely.
+     *
+     * Above rather than in the list because a reaction is a different kind of act from
+     * Delete or Forward — one tap that changes nothing about the message — and v2 puts it
+     * in the same place for the same reason.
+     */
+    onReact: ((String) -> Unit)? = null,
 ) {
     val entries = if (isReply) options.replyOptions() else options.visibleOptions()
-    if (entries.isEmpty()) {
+    if (entries.isEmpty() && onReact == null) {
         onDismiss()
         return
     }
@@ -209,6 +223,45 @@ fun ChatMessageOptionsSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = ZillitTheme.colors.surface,
     ) {
+        // Only once the server has the message: a reaction addresses its server id, and
+        // offering it on a row still uploading would fail silently.
+        if (onReact != null && options.isConfirmed) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = ZillitTheme.spacing.lg,
+                        vertical = ZillitTheme.spacing.md,
+                    ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                QUICK_REACTIONS.forEach { emoji ->
+                    val mine = message.reactions.any { it.isMine && it.emoji == emoji }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (mine) {
+                                    ZillitTheme.colors.accentSoft
+                                } else {
+                                    Color.Transparent
+                                },
+                            )
+                            .clickable {
+                                onReact(emoji)
+                                onDismiss()
+                            },
+                    ) {
+                        Text(text = emoji, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+            HorizontalDivider(color = ZillitTheme.colors.divider, thickness = 0.5.dp)
+        }
+
         LazyColumn(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
             items(entries, key = { it.name }) { option ->
                 Row(

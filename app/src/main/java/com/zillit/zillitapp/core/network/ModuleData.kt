@@ -54,19 +54,6 @@ enum class ModuleData {
         get() = this != CHAT_GPT_TOKEN && this != MAP_ROUTE_REQUEST
 
     /** v2 omits `Timezone` on the notification-ack path. Preserved exactly. */
-    /**
-     * Whether a bearer token can stand in for this variant.
-     *
-     * The token carries exactly `device_id` / `project_id` / `user_id` — the spec's words:
-     * "the token carries the same device_id / project_id / user_id that moduledata used
-     * to". The variants listed here carry nothing else, so the swap is lossless. The rest
-     * embed extra fields the token does not have — bucket credentials, the scanner id, Box
-     * ids, the calling identity — and swapping those would silently drop data the server
-     * reads, so they stay on moduledata until the backend owns those fields elsewhere.
-     */
-    val tokenEligible: Boolean
-        get() = this == DEFAULT || this == WITH_PROJECT_ID || this == WITH_PROJECT_USER_ID
-
     val sendsTimezone: Boolean
         get() = sendsModuleData && this != NOTIFICATION_ACKNOWLEDGE
 }
